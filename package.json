@@ -1,0 +1,15 @@
+{
+	"name": "com.aria.unity.nuget",
+	"version": "1.0.0",
+	"unity": "2019.1",
+	"displayName": "NuGetForUnity",
+	"description": "nuget package manager.",
+	"category": "Editor",
+	"keywords": ["PackageManagement"],
+	"dependencies": {
+	},
+	"author": {
+		"name": "tkaria",
+		"url": "https://tk3118.hatenablog.com"
+	}
+}
