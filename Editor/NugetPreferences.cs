@@ -1,4 +1,6 @@
-﻿namespace NugetForUnity
+﻿#pragma warning disable 618
+
+namespace NugetForUnity
 {
     using UnityEditor;
     using UnityEngine;

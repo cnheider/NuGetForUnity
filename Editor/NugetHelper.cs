@@ -1,4 +1,7 @@
-﻿namespace NugetForUnity
+﻿#pragma warning disable 649 // never assigned
+#pragma warning disable 618 // UnityEngine.WWW
+
+namespace NugetForUnity
 {
     using Ionic.Zip;
     using System;
