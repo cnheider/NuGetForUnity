@@ -212,7 +212,7 @@ namespace NugetForUnity
             // create the folder to prevent an exception when getting the files
             Directory.CreateDirectory(toolsPackagesFolder);
 
-            string[] files = Directory.GetFiles(toolsPackagesFolder, "nuget.exe", SearchOption.AllDirectories);
+            string[] files = Directory.GetFiles(toolsPackagesFolder, "NuGet.exe", SearchOption.AllDirectories);
             if (files.Length > 1)
             {
                 Debug.LogWarningFormat("More than one nuget.exe found. Using first one.");
@@ -221,7 +221,7 @@ namespace NugetForUnity
             {
                 Debug.LogWarningFormat("No nuget.exe found! Attemping to install the NuGet.CommandLine package.");
                 InstallIdentifier(new NugetPackageIdentifier("NuGet.CommandLine", "2.8.6"));
-                files = Directory.GetFiles(toolsPackagesFolder, "nuget.exe", SearchOption.AllDirectories);
+                files = Directory.GetFiles(toolsPackagesFolder, "NuGet.exe", SearchOption.AllDirectories);
                 if (files.Length < 1)
                 {
                     Debug.LogErrorFormat("nuget.exe still not found. Quiting...");
