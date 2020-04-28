@@ -42,7 +42,8 @@ namespace NugetForUnity
         /// <summary>
         /// The path where to put created (packed) and downloaded (not installed yet) .nupkg files.
         /// </summary>
-        public static readonly string PackOutputDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Path.Combine("NuGet", "Cache"));
+        //public static readonly string PackOutputDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Path.Combine("NuGet", "Cache"));
+        public static readonly string PackOutputDirectory = Path.Combine(Application.dataPath, "../Packages/Nupkg");
 
         /// <summary>
         /// The amount of time, in milliseconds, before the nuget.exe process times out and is killed.
