@@ -131,7 +131,16 @@
         /// <summary>
         /// Opens the NuGet Package Manager Window.
         /// </summary>
-        [MenuItem("NuGet/Manage NuGet Packages", false, 0)]
+        [MenuItem("NuGet/Open NuGet Official Site", false, 0)]
+        protected static void OpenOfficialSite()
+        {
+            Application.OpenURL("https://www.nuget.org/packages");
+        }
+
+        /// <summary>
+        /// Opens the NuGet Package Manager Window.
+        /// </summary>
+        [MenuItem("NuGet/Manage NuGet Packages", false, 1)]
         protected static void DisplayNugetWindow()
         {
             GetWindow<NugetWindow>();
@@ -140,7 +149,7 @@
         /// <summary>
         /// Restores all packages defined in packages.config
         /// </summary>
-        [MenuItem("NuGet/Restore Packages", false, 1)]
+        [MenuItem("NuGet/Restore Packages", false, 2)]
         protected static void RestorePackages()
         {
             NugetHelper.Restore();
