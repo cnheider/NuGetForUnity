@@ -1,4 +1,4 @@
-﻿#pragma warning disable 618
+#pragma warning disable 618
 
 namespace NuGetForUnity.Editor {
   using UnityEditor;
@@ -11,7 +11,7 @@ namespace NuGetForUnity.Editor {
     /// <summary>
     /// The current version of NuGet for Unity.
     /// </summary>
-    public const string _NuGetForUnityVersion = "2.0.0";
+    public const string _NuGetForUnityVersion = "3.0.0";
 
     /// <summary>
     /// The current position of the scroll bar in the GUI.
