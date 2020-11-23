@@ -1,6 +1,6 @@
 {
-	"name": "com.aria.unity.nuget",
-	"version": "1.0.0",
+	"name": "io.github.cnheider.nugetforunity",
+	"version": "1.0.1",
 	"unity": "2019.1",
 	"displayName": "NuGetForUnity",
 	"description": "nuget package manager.",
@@ -9,7 +9,7 @@
 	"dependencies": {
 	},
 	"author": {
-		"name": "tkaria",
-		"url": "https://tk3118.hatenablog.com"
+		"name": "cnheider (Original: GlitchEnzo)",
+		"url": "https://cnheider.github.io"
 	}
 }
