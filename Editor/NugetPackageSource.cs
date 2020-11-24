@@ -29,7 +29,7 @@
       get {
         var path = Environment.ExpandEnvironmentVariables(name : this.SavedPath);
         if (!path.StartsWith("http") && path != "(Aggregate source)" && !Path.IsPathRooted(path : path)) {
-          path = Path.Combine(path1 : Path.GetDirectoryName(path : NugetHelper._NugetConfigFilePath),
+          path = Path.Combine(path1 : Path.GetDirectoryName(path : NugetHelper.NugetConfigFilePath),
                               path2 : path);
         }
 

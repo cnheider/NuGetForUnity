@@ -1,6 +1,6 @@
 {
 	"name": "io.github.cnheider.nugetforunity",
-	"version": "3.0.0",
+	"version": "3.0.1",
 	"unity": "2019.1",
 	"displayName": "NuGetForUnity",
 	"description": "nuget package manager.",
