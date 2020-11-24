@@ -1,34 +1,26 @@
 #pragma warning disable 618
 
 namespace NuGetForUnity.Editor {
-  using UnityEditor;
-  using UnityEngine;
-
   /// <summary>
-  /// Handles the displaying, editing, and saving of the preferences for NuGet For Unity.
+  ///   Handles the displaying, editing, and saving of the preferences for NuGet For Unity.
   /// </summary>
   public static class NugetPreferences {
     /// <summary>
-    /// The current version of NuGet for Unity.
+    ///   The current position of the scroll bar in the GUI.
     /// </summary>
-    public const string _NuGetForUnityVersion = "3.0.0";
-
-    /// <summary>
-    /// The current position of the scroll bar in the GUI.
-    /// </summary>
-    static Vector2 _scroll_position;
+    static UnityEngine.Vector2 _scroll_position;
 
     public static string _Base_Path = "NuGetForUnity";
     static bool _prefs_loaded = false;
 
     /// <summary>
-    /// Draws the preferences GUI inside the Unity preferences window in the Editor.
+    ///   Draws the preferences GUI inside the Unity preferences window in the Editor.
     /// </summary>
-    [PreferenceItem("NuGet For Unity")]
+    [UnityEditor.PreferenceItem("NuGet For Unity")]
     public static void PreferencesGUI() {
       if (!_prefs_loaded) {
-        if (EditorPrefs.HasKey("NugetProjectBasePath")) {
-          _Base_Path = EditorPrefs.GetString("NugetProjectBasePath", defaultValue : _Base_Path);
+        if (UnityEditor.EditorPrefs.HasKey("NugetProjectBasePath")) {
+          _Base_Path = UnityEditor.EditorPrefs.GetString("NugetProjectBasePath", defaultValue : _Base_Path);
         }
 
         _prefs_loaded = true;
@@ -37,103 +29,104 @@ namespace NuGetForUnity.Editor {
       if (NugetHelper.NugetConfigFile == null) {
         NugetHelper.LoadNugetConfigFile();
       }
-      
+
       var preferences_changed_this_frame = false;
 
-      EditorGUILayout.LabelField(label : $"Version: {_NuGetForUnityVersion}");
+      UnityEditor.EditorGUILayout.LabelField(label : $"Version: {NugetConstants._NuGetForUnityVersion}");
 
-      EditorGUILayout.LabelField("Project Base Path:");
-      _Base_Path = EditorGUILayout.TextField(text : _Base_Path).Trim();
-
+      UnityEditor.EditorGUILayout.LabelField("Project Base Path:");
+      _Base_Path = UnityEditor.EditorGUILayout.TextField(text : _Base_Path).Trim();
 
       if (NugetHelper.NugetConfigFile != null) {
         var install_from_cache =
-            EditorGUILayout.Toggle("Install From the Cache",
-                                   value : NugetHelper.NugetConfigFile.InstallFromCache);
+            UnityEditor.EditorGUILayout.Toggle("Install From the Cache",
+                                               value : NugetHelper.NugetConfigFile.InstallFromCache);
         if (install_from_cache != NugetHelper.NugetConfigFile.InstallFromCache) {
           preferences_changed_this_frame = true;
           NugetHelper.NugetConfigFile.InstallFromCache = install_from_cache;
         }
 
-        var read_only_package_files = EditorGUILayout.Toggle("Read-Only Package Files",
-                                                             value : NugetHelper.NugetConfigFile
-                                                                 .ReadOnlyPackageFiles);
+        var read_only_package_files = UnityEditor.EditorGUILayout.Toggle("Read-Only Package Files",
+                                                                           value : NugetHelper.NugetConfigFile
+                                                                               .ReadOnlyPackageFiles);
         if (read_only_package_files != NugetHelper.NugetConfigFile.ReadOnlyPackageFiles) {
           preferences_changed_this_frame = true;
           NugetHelper.NugetConfigFile.ReadOnlyPackageFiles = read_only_package_files;
         }
 
         var verbose =
-            EditorGUILayout.Toggle("Use Verbose Logging", value : NugetHelper.NugetConfigFile.Verbose);
+            UnityEditor.EditorGUILayout.Toggle("Use Verbose Logging",
+                                               value : NugetHelper.NugetConfigFile.Verbose);
         if (verbose != NugetHelper.NugetConfigFile.Verbose) {
           preferences_changed_this_frame = true;
           NugetHelper.NugetConfigFile.Verbose = verbose;
         }
 
-
-
-        EditorGUILayout.LabelField("Package Sources:");
-        _scroll_position = EditorGUILayout.BeginScrollView(scrollPosition : _scroll_position);
+        UnityEditor.EditorGUILayout.LabelField("Package Sources:");
+        _scroll_position = UnityEditor.EditorGUILayout.BeginScrollView(scrollPosition : _scroll_position);
         {
           NugetPackageSource source_to_move_up = null;
           NugetPackageSource source_to_move_down = null;
           NugetPackageSource source_to_remove = null;
 
           foreach (var source in NugetHelper.NugetConfigFile.PackageSources) {
-            EditorGUILayout.BeginVertical();
+            UnityEditor.EditorGUILayout.BeginVertical();
             {
-              EditorGUILayout.BeginHorizontal();
+              UnityEditor.EditorGUILayout.BeginHorizontal();
               {
-                EditorGUILayout.BeginVertical(GUILayout.Width(20));
+                UnityEditor.EditorGUILayout.BeginVertical(UnityEngine.GUILayout.Width(20));
                 {
-                  GUILayout.Space(10);
-                  var is_enabled = EditorGUILayout.Toggle(value : source.IsEnabled, GUILayout.Width(20));
+                  UnityEngine.GUILayout.Space(10);
+                  var is_enabled =
+                      UnityEditor.EditorGUILayout.Toggle(value : source.IsEnabled,
+                                                         UnityEngine.GUILayout.Width(20));
                   if (is_enabled != source.IsEnabled) {
                     preferences_changed_this_frame = true;
                     source.IsEnabled = is_enabled;
                   }
                 }
-                EditorGUILayout.EndVertical();
+                UnityEditor.EditorGUILayout.EndVertical();
 
-                EditorGUILayout.BeginVertical();
+                UnityEditor.EditorGUILayout.BeginVertical();
                 {
-                  var name = EditorGUILayout.TextField(text : source.Name);
+                  var name = UnityEditor.EditorGUILayout.TextField(text : source.Name);
                   if (name != source.Name) {
                     preferences_changed_this_frame = true;
                     source.Name = name;
                   }
 
-                  var saved_path = EditorGUILayout.TextField(text : source.SavedPath).Trim();
+                  var saved_path = UnityEditor.EditorGUILayout.TextField(text : source.SavedPath).Trim();
                   if (saved_path != source.SavedPath) {
                     preferences_changed_this_frame = true;
                     source.SavedPath = saved_path;
                   }
                 }
-                EditorGUILayout.EndVertical();
+                UnityEditor.EditorGUILayout.EndVertical();
               }
-              EditorGUILayout.EndHorizontal();
+              UnityEditor.EditorGUILayout.EndHorizontal();
 
-              EditorGUILayout.BeginHorizontal();
+              UnityEditor.EditorGUILayout.BeginHorizontal();
               {
-                GUILayout.Space(29);
-                EditorGUIUtility.labelWidth = 75;
-                EditorGUILayout.BeginVertical();
+                UnityEngine.GUILayout.Space(29);
+                UnityEditor.EditorGUIUtility.labelWidth = 75;
+                UnityEditor.EditorGUILayout.BeginVertical();
 
-                var has_password = EditorGUILayout.Toggle("Credentials", value : source.HasPassword);
+                var has_password =
+                    UnityEditor.EditorGUILayout.Toggle("Credentials", value : source.HasPassword);
                 if (has_password != source.HasPassword) {
                   preferences_changed_this_frame = true;
                   source.HasPassword = has_password;
                 }
 
                 if (source.HasPassword) {
-                  var user_name = EditorGUILayout.TextField("User Name", text : source.UserName);
+                  var user_name = UnityEditor.EditorGUILayout.TextField("User Name", text : source.UserName);
                   if (user_name != source.UserName) {
                     preferences_changed_this_frame = true;
                     source.UserName = user_name;
                   }
 
                   var saved_password =
-                      EditorGUILayout.PasswordField("Password", password : source.SavedPassword);
+                      UnityEditor.EditorGUILayout.PasswordField("Password", password : source.SavedPassword);
                   if (saved_password != source.SavedPassword) {
                     preferences_changed_this_frame = true;
                     source.SavedPassword = saved_password;
@@ -142,28 +135,28 @@ namespace NuGetForUnity.Editor {
                   source.UserName = null;
                 }
 
-                EditorGUIUtility.labelWidth = 0;
-                EditorGUILayout.EndVertical();
+                UnityEditor.EditorGUIUtility.labelWidth = 0;
+                UnityEditor.EditorGUILayout.EndVertical();
               }
-              EditorGUILayout.EndHorizontal();
+              UnityEditor.EditorGUILayout.EndHorizontal();
 
-              EditorGUILayout.BeginHorizontal();
+              UnityEditor.EditorGUILayout.BeginHorizontal();
               {
-                if (GUILayout.Button(text : "Move Up")) {
+                if (UnityEngine.GUILayout.Button("Move Up")) {
                   source_to_move_up = source;
                 }
 
-                if (GUILayout.Button(text : "Move Down")) {
+                if (UnityEngine.GUILayout.Button("Move Down")) {
                   source_to_move_down = source;
                 }
 
-                if (GUILayout.Button(text : "Remove")) {
+                if (UnityEngine.GUILayout.Button("Remove")) {
                   source_to_remove = source;
                 }
               }
-              EditorGUILayout.EndHorizontal();
+              UnityEditor.EditorGUILayout.EndHorizontal();
             }
-            EditorGUILayout.EndVertical();
+            UnityEditor.EditorGUILayout.EndVertical();
           }
 
           if (source_to_move_up != null) {
@@ -193,15 +186,15 @@ namespace NuGetForUnity.Editor {
             preferences_changed_this_frame = true;
           }
 
-          if (GUILayout.Button(text : "Add New Source")) {
+          if (UnityEngine.GUILayout.Button("Add New Source")) {
             NugetHelper.NugetConfigFile.PackageSources.Add(item : new NugetPackageSource("New Source",
                                                              "source_path"));
             preferences_changed_this_frame = true;
           }
 
-          EditorGUILayout.EndScrollView();
+          UnityEditor.EditorGUILayout.EndScrollView();
 
-          if (GUILayout.Button(text : "Reset To Default")) {
+          if (UnityEngine.GUILayout.Button("Reset To Default")) {
             NugetConfigFile.CreateDefaultFile(file_path : NugetHelper.NugetConfigFilePath);
             NugetHelper.LoadNugetConfigFile();
             preferences_changed_this_frame = true;
@@ -213,8 +206,8 @@ namespace NuGetForUnity.Editor {
         }
       }
 
-      if (GUI.changed) {
-        EditorPrefs.SetString("NugetProjectBasePath", _Base_Path);
+      if (UnityEngine.GUI.changed) {
+        UnityEditor.EditorPrefs.SetString("NugetProjectBasePath", value : _Base_Path);
       }
     }
   }

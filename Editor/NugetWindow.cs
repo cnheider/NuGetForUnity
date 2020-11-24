@@ -1,158 +1,194 @@
 ﻿namespace NuGetForUnity.Editor {
-  using System;
-  using System.Collections.Generic;
-  using System.Diagnostics;
-  using System.Linq;
-  using System.Text;
-  using System.Text.RegularExpressions;
-  using UnityEditor;
-  using UnityEngine;
-  using UnityEngine.Networking;
 
+  /// <inheritdoc />
   /// <summary>
-  /// Represents the NuGet Package Manager Window in the Unity Editor.
+  ///   Represents the NuGet Package Manager Window in the Unity Editor.
   /// </summary>
-  public class NugetWindow : EditorWindow {
+  public class NugetWindow : UnityEditor.EditorWindow {
     /// <summary>
-    /// True when the NugetWindow has initialized. This is used to skip time-consuming reloading operations when the assembly is reloaded.
+    ///   True when the NugetWindow has initialized. This is used to skip time-consuming reloading operations when
+    ///   the assembly is reloaded.
     /// </summary>
-    [SerializeField]
+    [UnityEngine.SerializeField]
     bool hasRefreshed = false;
 
     /// <summary>
-    /// The current position of the scroll bar in the GUI.
+    ///   The list of NugetPackages available to install.
     /// </summary>
-    Vector2 scrollPosition;
+    [UnityEngine.SerializeField]
+    System.Collections.Generic.List<NugetPackage> availablePackages =
+        new System.Collections.Generic.List<NugetPackage>();
 
     /// <summary>
-    /// The list of NugetPackages available to install.
+    ///   The list of package updates available, based on the already installed packages.
     /// </summary>
-    [SerializeField]
-    List<NugetPackage> availablePackages = new List<NugetPackage>();
+    [UnityEngine.SerializeField]
+    System.Collections.Generic.List<NugetPackage> updatePackages =
+        new System.Collections.Generic.List<NugetPackage>();
 
     /// <summary>
-    /// The list of package updates available, based on the already installed packages.
+    ///   The number of packages to skip when requesting a list of packages from the server.  This is used to get a
+    ///   new group of packages.
     /// </summary>
-    [SerializeField]
-    List<NugetPackage> updatePackages = new List<NugetPackage>();
-
-    /// <summary>
-    /// The filtered list of package updates available.
-    /// </summary>
-    List<NugetPackage> filteredUpdatePackages = new List<NugetPackage>();
-
-    /// <summary>
-    /// True to show all old package versions.  False to only show the latest version.
-    /// </summary>
-    bool showAllOnlineVersions;
-
-    /// <summary>
-    /// True to show beta and alpha package versions.  False to only show stable versions.
-    /// </summary>
-    bool showOnlinePrerelease;
-
-    /// <summary>
-    /// True to show all old package versions.  False to only show the latest version.
-    /// </summary>
-    bool showAllUpdateVersions;
-
-    /// <summary>
-    /// True to show beta and alpha package versions.  False to only show stable versions.
-    /// </summary>
-    bool showPrereleaseUpdates;
-
-    /// <summary>
-    /// The search term to search the online packages for.
-    /// </summary>
-    string onlineSearchTerm = "Search";
-
-    /// <summary>
-    /// The search term to search the installed packages for.
-    /// </summary>
-    string installedSearchTerm = "Search";
-
-    /// <summary>
-    /// The search term in progress while it is being typed into the search box.
-    /// We wait until the Enter key or Search button is pressed before searching in order
-    /// to match the way that the Online and Updates searches work.
-    /// </summary>
-    string installedSearchTermEditBox = "Search";
-
-    /// <summary>
-    /// The search term to search the update packages for.
-    /// </summary>
-    string updatesSearchTerm = "Search";
-
-    /// <summary>
-    /// The number of packages to get from the request to the server.
-    /// </summary>
-    int numberToGet = 15;
-
-    /// <summary>
-    /// The number of packages to skip when requesting a list of packages from the server.  This is used to get a new group of packages.
-    /// </summary>
-    [SerializeField]
+    [UnityEngine.SerializeField]
     int numberToSkip;
 
     /// <summary>
-    /// The currently selected tab in the window.
+    ///   The default icon to display for packages.
     /// </summary>
-    int currentTab;
+    [UnityEngine.SerializeField]
+    UnityEngine.Texture2D defaultIcon;
 
     /// <summary>
-    /// The titles of the tabs in the window.
+    ///   The titles of the tabs in the window.
     /// </summary>
-    readonly string[] tabTitles = {"Online", "Installed", "Updates"};
+    readonly string[] _tab_titles = {"Online", "Installed", "Updates"};
 
     /// <summary>
-    /// The default icon to display for packages.
+    ///   The currently selected tab in the window.
     /// </summary>
-    [SerializeField]
-    Texture2D defaultIcon;
+    int _current_tab;
 
     /// <summary>
-    /// Used to keep track of which packages the user has opened the clone window on.
+    ///   The filtered list of package updates available.
     /// </summary>
-    HashSet<NugetPackage> openCloneWindows = new HashSet<NugetPackage>();
+    System.Collections.Generic.List<NugetPackage> _filtered_update_packages =
+        new System.Collections.Generic.List<NugetPackage>();
 
-    IEnumerable<NugetPackage> FilteredInstalledPackages {
+    System.Collections.Generic.Dictionary<string, bool> _foldouts =
+        new System.Collections.Generic.Dictionary<string, bool>();
+
+    /// <summary>
+    ///   The search term to search the installed packages for.
+    /// </summary>
+    string _installed_search_term = "Search";
+
+    /// <summary>
+    ///   The search term in progress while it is being typed into the search box.
+    ///   We wait until the Enter key or Search button is pressed before searching in order
+    ///   to match the way that the Online and Updates searches work.
+    /// </summary>
+    string _installed_search_term_edit_box = "Search";
+
+    /// <summary>
+    ///   The number of packages to get from the request to the server.
+    /// </summary>
+    int _number_to_get = 15;
+
+    /// <summary>
+    ///   The search term to search the online packages for.
+    /// </summary>
+    string _online_search_term = "Search";
+
+    /// <summary>
+    ///   Used to keep track of which packages the user has opened the clone window on.
+    /// </summary>
+    System.Collections.Generic.HashSet<NugetPackage> _open_clone_windows =
+        new System.Collections.Generic.HashSet<NugetPackage>();
+
+    /// <summary>
+    ///   The current position of the scroll bar in the GUI.
+    /// </summary>
+    UnityEngine.Vector2 _scroll_position;
+
+    /// <summary>
+    ///   True to show all old package versions.  False to only show the latest version.
+    /// </summary>
+    bool _show_all_online_versions;
+
+    /// <summary>
+    ///   True to show all old package versions.  False to only show the latest version.
+    /// </summary>
+    bool _show_all_update_versions;
+
+    /// <summary>
+    ///   True to show beta and alpha package versions.  False to only show stable versions.
+    /// </summary>
+    bool _show_online_prerelease;
+
+    /// <summary>
+    ///   True to show beta and alpha package versions.  False to only show stable versions.
+    /// </summary>
+    bool _show_prerelease_updates;
+
+    /// <summary>
+    ///   The search term to search the update packages for.
+    /// </summary>
+    string _updates_search_term = "Search";
+
+    System.Collections.Generic.IEnumerable<NugetPackage> FilteredInstalledPackages {
       get {
-        if (this.installedSearchTerm == "Search")
+        if (this._installed_search_term == "Search") {
           return NugetHelper.InstalledPackages;
+        }
 
-        return NugetHelper.InstalledPackages
-                          .Where(x => x._Id.ToLower().Contains(value : this.installedSearchTerm)
-                                      || x.Title.ToLower().Contains(value : this.installedSearchTerm))
-                          .ToList();
+        return System.Linq.Enumerable.ToList(source : System.Linq.Enumerable.Where(source : NugetHelper.InstalledPackages,
+                                                                                   x => x._Id.ToLower()
+                                                                                         .Contains(value : this._installed_search_term)
+                                                                                        || x.Title.ToLower()
+                                                                                            .Contains(value : this._installed_search_term)));
       }
     }
 
     /// <summary>
-    /// Opens the NuGet Package Manager Window.
+    ///   Called when enabling the window.
     /// </summary>
-    [MenuItem("NuGet/Open NuGet Official Site", false, 0)]
-    protected static void OpenOfficialSite() { Application.OpenURL("https://www.nuget.org/packages"); }
+    void OnEnable() { this.Refresh(false); }
 
     /// <summary>
-    /// Opens the NuGet Package Manager Window.
+    ///   Automatically called by Unity to draw the GUI.
     /// </summary>
-    [MenuItem("NuGet/Manage NuGet Packages", false, 1)]
+    protected void OnGUI() {
+      var selected_tab =
+          UnityEngine.GUILayout.Toolbar(selected : this._current_tab, texts : this._tab_titles);
+
+      if (selected_tab != this._current_tab) {
+        this.OnTabChanged();
+      }
+
+      this._current_tab = selected_tab;
+
+      switch (this._current_tab) {
+        case 0:
+          this.DrawOnline();
+          break;
+        case 1:
+          this.DrawInstalled();
+          break;
+        case 2:
+          this.DrawUpdates();
+          break;
+      }
+    }
+
+    /// <summary>
+    ///   Opens the NuGet Package Manager Window.
+    /// </summary>
+    [UnityEditor.MenuItem("NuGet/Open NuGet Official Site", false, 0)]
+    protected static void OpenOfficialSite() {
+      UnityEngine.Application.OpenURL("https://www.nuget.org/packages");
+    }
+
+    /// <summary>
+    ///   Opens the NuGet Package Manager Window.
+    /// </summary>
+    [UnityEditor.MenuItem("NuGet/Manage NuGet Packages", false, 1)]
     protected static void DisplayNugetWindow() { GetWindow<NugetWindow>(); }
 
     /// <summary>
-    /// Restores all packages defined in packages.config
+    ///   Restores all packages defined in packages.config
     /// </summary>
-    [MenuItem("NuGet/Restore Packages", false, 2)]
+    [UnityEditor.MenuItem("NuGet/Restore Packages", false, 2)]
     protected static void RestorePackages() { NugetHelper.Restore(); }
 
     /// <summary>
-    /// Displays the version number of NuGetForUnity.
+    ///   Displays the version number of NuGetForUnity.
     /// </summary>
-    [MenuItem(itemName : "NuGet/Version " + NugetPreferences._NuGetForUnityVersion, false, 10)]
+    [UnityEditor.MenuItem(itemName : "NuGet/Version " + NugetConstants._NuGetForUnityVersion, false, 10)]
     protected static void DisplayVersion() {
       // open the preferences window
       #if UNITY_2018_1_OR_NEWER
-      SettingsService.OpenUserPreferences("Preferences/NuGet For Unity");
+      UnityEditor.SettingsService.OpenUserPreferences("Preferences/NuGet For Unity");
       #else
             var assembly = System.Reflection.Assembly.GetAssembly(typeof(EditorWindow));
             var preferencesWindow = assembly.GetType("UnityEditor.PreferencesWindow");
@@ -217,13 +253,13 @@
     }
 
     /// <summary>
-    /// Checks/launches the Releases page to update NuGetForUnity with a new version.
+    ///   Checks/launches the Releases page to update NuGetForUnity with a new version.
     /// </summary>
-    [MenuItem("NuGet/Check for Updates...", false, 10)]
+    [UnityEditor.MenuItem("NuGet/Check for Updates...", false, 10)]
     protected static void CheckForUpdates() {
       const string url = "https://github.com/GlitchEnzo/NuGetForUnity/releases";
       #if UNITY_2017_1_OR_NEWER // UnityWebRequest is not available in Unity 5.2, which is the currently the earliest version supported by NuGetForUnity.
-      using (var request = UnityWebRequest.Get(uri : url)) {
+      using (var request = UnityEngine.Networking.UnityWebRequest.Get(uri : url)) {
         request.SendWebRequest();
         #else
             using (WWW request = new WWW(url))
@@ -232,13 +268,13 @@
 
         NugetHelper.LogVerbose("HTTP GET {0}", url);
         while (!request.isDone) {
-          EditorUtility.DisplayProgressBar("Checking updates", null, 0.0f);
+          UnityEditor.EditorUtility.DisplayProgressBar("Checking updates", null, 0.0f);
         }
 
-        EditorUtility.ClearProgressBar();
+        UnityEditor.EditorUtility.ClearProgressBar();
 
-        string latestVersion = null;
-        string latestVersionDownloadUrl = null;
+        string latest_version = null;
+        string latest_version_download_url = null;
 
         string response = null;
         #if UNITY_2017_1_OR_NEWER
@@ -253,45 +289,48 @@
         #endif
 
         if (response != null) {
-          latestVersion =
-              GetLatestVersonFromReleasesHtml(response : response, url : out latestVersionDownloadUrl);
+          latest_version =
+              GetLatestVersonFromReleasesHtml(response : response, url : out latest_version_download_url);
         }
 
-        if (latestVersion == null) {
-          EditorUtility.DisplayDialog("Unable to Determine Updates",
-                                      message : string.Format("Couldn't find release information at {0}.",
-                                                              arg0 : url),
-                                      "OK");
+        if (latest_version == null) {
+          UnityEditor.EditorUtility.DisplayDialog("Unable to Determine Updates",
+                                                  message :
+                                                  string.Format("Couldn't find release information at {0}.",
+                                                                arg0 : url),
+                                                  "OK");
           return;
         }
 
         var current =
-            new NugetPackageIdentifier("NuGetForUnity", version : NugetPreferences._NuGetForUnityVersion);
-        var latest = new NugetPackageIdentifier("NuGetForUnity", version : latestVersion);
+            new NugetPackageIdentifier("NuGetForUnity", version : NugetConstants._NuGetForUnityVersion);
+        var latest = new NugetPackageIdentifier("NuGetForUnity", version : latest_version);
         if (current >= latest) {
-          EditorUtility.DisplayDialog("No Updates Available",
-                                      message :
-                                      string
-                                          .Format("Your version of NuGetForUnity is up to date.\nVersion {0}.",
-                                                  arg0 : NugetPreferences._NuGetForUnityVersion),
-                                      "OK");
+          UnityEditor.EditorUtility.DisplayDialog("No Updates Available",
+                                                  message :
+                                                  string
+                                                      .Format("Your version of NuGetForUnity is up to date.\nVersion {0}.",
+                                                              arg0 : NugetConstants._NuGetForUnityVersion),
+                                                  "OK");
           return;
         }
 
-        // New version is available. Give user options for installing it.
-        switch (EditorUtility.DisplayDialogComplex("Update Available",
-                                                   message :
-                                                   string.Format("Current Version: {0}\nLatest Version: {1}",
-                                                                 arg0 : NugetPreferences._NuGetForUnityVersion,
-                                                                 arg1 : latestVersion),
-                                                   "Install Latest",
-                                                   "Open Releases Page",
-                                                   "Cancel")) {
+
+        switch (UnityEditor.EditorUtility.DisplayDialogComplex("Update Available",
+                                                               message :
+                                                               string
+                                                                   .Format("Current Version: {0}\nLatest Version: {1}",
+                                                                     arg0 : NugetConstants
+                                                                         ._NuGetForUnityVersion,
+                                                                     arg1 : latest_version),
+                                                               "Install Latest",
+                                                               "Open Releases Page",
+                                                               "Cancel")) {        // New version is available. Give user options for installing it.
           case 0:
-            Application.OpenURL(url : latestVersionDownloadUrl);
+            UnityEngine.Application.OpenURL(url : latest_version_download_url);
             break;
           case 1:
-            Application.OpenURL(url : url);
+            UnityEngine.Application.OpenURL(url : url);
             break;
           case 2: break;
         }
@@ -299,9 +338,10 @@
     }
 
     static string GetLatestVersonFromReleasesHtml(string response, out string url) {
-      var hrefRegex =
-          new Regex(@"<a href=""(?<url>.*NuGetForUnity\.(?<version>\d+\.\d+\.\d+)\.unitypackage)""");
-      var match = hrefRegex.Match(input : response);
+      var href_regex =
+          new
+              System.Text.RegularExpressions.Regex(@"<a href=""(?<url>.*NuGetForUnity\.(?<version>\d+\.\d+\.\d+)\.unitypackage)""");
+      var match = href_regex.Match(input : response);
       if (!match.Success) {
         url = null;
         return null;
@@ -311,25 +351,20 @@
       return match.Groups["version"].Value;
     }
 
-    /// <summary>
-    /// Called when enabling the window.
-    /// </summary>
-    void OnEnable() { this.Refresh(false); }
-
-    void Refresh(bool forceFullRefresh) {
-      var stopwatch = new Stopwatch();
+    void Refresh(bool force_full_refresh) {
+      var stopwatch = new System.Diagnostics.Stopwatch();
       stopwatch.Start();
 
       try {
-        if (forceFullRefresh) {
+        if (force_full_refresh) {
           NugetHelper.ClearCachedCredentials();
         }
 
-        // reload the NuGet.config file, in case it was changed after Unity opened, but before the manager window opened (now)
+        // reload the nuget.config file, in case it was changed after Unity opened, but before the manager window opened (now)
         NugetHelper.LoadNugetConfigFile();
 
         // if we are entering playmode, don't do anything
-        if (EditorApplication.isPlayingOrWillChangePlaymode) {
+        if (UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode) {
           return;
         }
 
@@ -338,510 +373,538 @@
                                             : "NugetWindow reloading config and updating packages");
 
         // set the window title
-        this.titleContent = new GUIContent("NuGet");
+        this.titleContent = new UnityEngine.GUIContent("NuGet");
 
-        if (!this.hasRefreshed || forceFullRefresh) {
+        if (!this.hasRefreshed || force_full_refresh) {
           // reset the number to skip
           this.numberToSkip = 0;
 
           // TODO: Do we even need to load ALL of the data, or can we just get the Online tab packages?
 
-          EditorUtility.DisplayProgressBar("Opening NuGet", "Fetching packages from server...", 0.3f);
+          UnityEditor.EditorUtility.DisplayProgressBar("Opening NuGet",
+                                                       "Fetching packages from server...",
+                                                       0.3f);
           this.UpdateOnlinePackages();
 
-          EditorUtility.DisplayProgressBar("Opening NuGet", "Getting installed packages...", 0.6f);
+          UnityEditor.EditorUtility.DisplayProgressBar("Opening NuGet",
+                                                       "Getting installed packages...",
+                                                       0.6f);
           NugetHelper.UpdateInstalledPackages();
 
-          EditorUtility.DisplayProgressBar("Opening NuGet", "Getting available updates...", 0.9f);
+          UnityEditor.EditorUtility.DisplayProgressBar("Opening NuGet", "Getting available updates...", 0.9f);
           this.UpdateUpdatePackages();
 
           // load the default icon from the Resources folder
-          this.defaultIcon = (Texture2D)Resources.Load("defaultIcon", systemTypeInstance : typeof(Texture2D));
+          this.defaultIcon =
+              (UnityEngine.Texture2D)UnityEngine.Resources.Load("defaultIcon",
+                                                                systemTypeInstance :
+                                                                typeof(UnityEngine.Texture2D));
         }
 
         this.hasRefreshed = true;
-      } catch (Exception e) {
-        UnityEngine.Debug.LogErrorFormat("{0}", e.ToString());
+      } catch (System.Exception e) {
+        UnityEngine.Debug.LogErrorFormat("{0}", e);
       } finally {
-        EditorUtility.ClearProgressBar();
+        UnityEditor.EditorUtility.ClearProgressBar();
 
         NugetHelper.LogVerbose("NugetWindow reloading took {0} ms", stopwatch.ElapsedMilliseconds);
       }
     }
 
     /// <summary>
-    /// Updates the list of available packages by running a search with the server using the currently set parameters (# to get, # to skip, etc).
+    ///   Updates the list of available packages by running a search with the server using the currently set
+    ///   parameters (# to get, # to skip, etc).
     /// </summary>
     void UpdateOnlinePackages() {
       this.availablePackages =
           NugetHelper.Search(search_term :
-                             this.onlineSearchTerm != "Search" ? this.onlineSearchTerm : string.Empty,
-                             include_all_versions : this.showAllOnlineVersions,
-                             include_prerelease : this.showOnlinePrerelease,
-                             number_to_get : this.numberToGet,
+                             this._online_search_term != "Search" ? this._online_search_term : string.Empty,
+                             include_all_versions : this._show_all_online_versions,
+                             include_prerelease : this._show_online_prerelease,
+                             number_to_get : this._number_to_get,
                              number_to_skip : this.numberToSkip);
     }
 
     /// <summary>
-    /// Updates the list of update packages.
+    ///   Updates the list of update packages.
     /// </summary>
     void UpdateUpdatePackages() {
       // get any available updates for the installed packages
       this.updatePackages = NugetHelper.GetUpdates(packages_to_update : NugetHelper.InstalledPackages,
-                                                   include_prerelease : this.showPrereleaseUpdates,
-                                                   include_all_versions : this.showAllUpdateVersions);
-      this.filteredUpdatePackages = this.updatePackages;
+                                                   include_prerelease : this._show_prerelease_updates,
+                                                   include_all_versions : this._show_all_update_versions);
+      this._filtered_update_packages = this.updatePackages;
 
-      if (this.updatesSearchTerm != "Search") {
-        this.filteredUpdatePackages = this.updatePackages
-                                          .Where(x => x._Id.ToLower().Contains(value : this.updatesSearchTerm)
-                                                      || x.Title.ToLower()
-                                                          .Contains(value : this.updatesSearchTerm)).ToList();
+      if (this._updates_search_term != "Search") {
+        this._filtered_update_packages = System.Linq.Enumerable.ToList(source : System.Linq.Enumerable.Where(source : this.updatePackages,
+                                                                                                             x => x._Id.ToLower()
+                                                                                                                   .Contains(value : this
+                                                                                                                                 ._updates_search_term)
+                                                                                                                  || x.Title.ToLower()
+                                                                                                                      .Contains(value : this
+                                                                                                                                    ._updates_search_term)));
       }
     }
 
     /// <summary>
-    /// From here: http://forum.unity3d.com/threads/changing-the-background-color-for-beginhorizontal.66015/
+    ///   From here: http://forum.unity3d.com/threads/changing-the-background-color-for-beginhorizontal.66015/
     /// </summary>
     /// <param name="width"></param>
     /// <param name="height"></param>
     /// <param name="col"></param>
     /// <returns></returns>
-    Texture2D MakeTex(int width, int height, Color col) {
-      var pix = new Color[width * height];
+    UnityEngine.Texture2D MakeTex(int width, int height, UnityEngine.Color col) {
+      var pix = new UnityEngine.Color[width * height];
 
-      for (var i = 0; i < pix.Length; i++)
+      for (var i = 0; i < pix.Length; i++) {
         pix[i] = col;
+      }
 
-      var result = new Texture2D(width : width, height : height);
+      var result = new UnityEngine.Texture2D(width : width, height : height);
       result.SetPixels(colors : pix);
       result.Apply();
 
       return result;
     }
 
-    /// <summary>
-    /// Automatically called by Unity to draw the GUI.
-    /// </summary>
-    protected void OnGUI() {
-      var selectedTab = GUILayout.Toolbar(selected : this.currentTab, texts : this.tabTitles);
-
-      if (selectedTab != this.currentTab) this.OnTabChanged();
-
-      this.currentTab = selectedTab;
-
-      switch (this.currentTab) {
-        case 0:
-          this.DrawOnline();
-          break;
-        case 1:
-          this.DrawInstalled();
-          break;
-        case 2:
-          this.DrawUpdates();
-          break;
-      }
-    }
-
-    void OnTabChanged() { this.openCloneWindows.Clear(); }
+    void OnTabChanged() { this._open_clone_windows.Clear(); }
 
     /// <summary>
-    /// Creates a GUI style with a contrasting background color based upon if the Unity Editor is the free (light) skin or the Pro (dark) skin.
+    ///   Creates a GUI style with a contrasting background color based upon if the Unity Editor is the free (light)
+    ///   skin or the Pro (dark) skin.
     /// </summary>
     /// <returns>A GUI style with the appropriate background color set.</returns>
-    GUIStyle GetContrastStyle() {
-      var style = new GUIStyle();
-      var backgroundColor =
-          EditorGUIUtility.isProSkin ? new Color(0.3f, 0.3f, 0.3f) : new Color(0.6f, 0.6f, 0.6f);
-      style.normal.background = this.MakeTex(16, 16, col : backgroundColor);
+    UnityEngine.GUIStyle GetContrastStyle() {
+      var style = new UnityEngine.GUIStyle();
+      var background_color = UnityEditor.EditorGUIUtility.isProSkin
+                                 ? new UnityEngine.Color(0.3f, 0.3f, 0.3f)
+                                 : new UnityEngine.Color(0.6f, 0.6f, 0.6f);
+      style.normal.background = this.MakeTex(16, 16, col : background_color);
       return style;
     }
 
     /// <summary>
-    /// Creates a GUI style with a background color the same as the editor's current background color.
+    ///   Creates a GUI style with a background color the same as the editor's current background color.
     /// </summary>
     /// <returns>A GUI style with the appropriate background color set.</returns>
-    GUIStyle GetBackgroundStyle() {
-      var style = new GUIStyle();
-      var backgroundColor = EditorGUIUtility.isProSkin
-                                ? new Color32(56,
-                                              56,
-                                              56,
-                                              255)
-                                : new Color32(194,
-                                              194,
-                                              194,
-                                              255);
-      style.normal.background = this.MakeTex(16, 16, col : backgroundColor);
+    UnityEngine.GUIStyle GetBackgroundStyle() {
+      var style = new UnityEngine.GUIStyle();
+      var background_color = UnityEditor.EditorGUIUtility.isProSkin
+                                 ? new UnityEngine.Color32(56,
+                                                           56,
+                                                           56,
+                                                           255)
+                                 : new UnityEngine.Color32(194,
+                                                           194,
+                                                           194,
+                                                           255);
+      style.normal.background = this.MakeTex(16, 16, col : background_color);
       return style;
     }
 
     /// <summary>
-    /// Draws the list of installed packages that have updates available.
+    ///   Draws the list of installed packages that have updates available.
     /// </summary>
     void DrawUpdates() {
       this.DrawUpdatesHeader();
 
       // display all of the installed packages
-      this.scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition : this.scrollPosition);
-      EditorGUILayout.BeginVertical();
+      this._scroll_position =
+          UnityEditor.EditorGUILayout.BeginScrollView(scrollPosition : this._scroll_position);
+      UnityEditor.EditorGUILayout.BeginVertical();
 
       var style = this.GetContrastStyle();
 
-      if (this.filteredUpdatePackages != null && this.filteredUpdatePackages.Count > 0) {
-        this.DrawPackages(packages : this.filteredUpdatePackages);
+      if (this._filtered_update_packages != null && this._filtered_update_packages.Count > 0) {
+        this.DrawPackages(packages : this._filtered_update_packages);
       } else {
-        EditorStyles.label.fontStyle = FontStyle.Bold;
-        EditorStyles.label.fontSize = 14;
-        EditorGUILayout.LabelField("There are no updates available!", GUILayout.Height(20));
-        EditorStyles.label.fontSize = 10;
-        EditorStyles.label.fontStyle = FontStyle.Normal;
+        UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Bold;
+        UnityEditor.EditorStyles.label.fontSize = 14;
+        UnityEditor.EditorGUILayout.LabelField("There are no updates available!",
+                                               UnityEngine.GUILayout.Height(20));
+        UnityEditor.EditorStyles.label.fontSize = 10;
+        UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Normal;
       }
 
-      EditorGUILayout.EndVertical();
-      EditorGUILayout.EndScrollView();
+      UnityEditor.EditorGUILayout.EndVertical();
+      UnityEditor.EditorGUILayout.EndScrollView();
     }
 
     /// <summary>
-    /// Draws the list of installed packages.
+    ///   Draws the list of installed packages.
     /// </summary>
     void DrawInstalled() {
       this.DrawInstalledHeader();
 
       // display all of the installed packages
-      this.scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition : this.scrollPosition);
-      EditorGUILayout.BeginVertical();
+      this._scroll_position =
+          UnityEditor.EditorGUILayout.BeginScrollView(scrollPosition : this._scroll_position);
+      UnityEditor.EditorGUILayout.BeginVertical();
 
-      var filteredInstalledPackages = this.FilteredInstalledPackages.ToList();
-      if (filteredInstalledPackages != null && filteredInstalledPackages.Count > 0) {
-        this.DrawPackages(packages : filteredInstalledPackages);
+      var filtered_installed_packages = System.Linq.Enumerable.ToList(source : this.FilteredInstalledPackages);
+      if (filtered_installed_packages != null && filtered_installed_packages.Count > 0) {
+        this.DrawPackages(packages : filtered_installed_packages);
       } else {
-        EditorStyles.label.fontStyle = FontStyle.Bold;
-        EditorStyles.label.fontSize = 14;
-        EditorGUILayout.LabelField("There are no packages installed!", GUILayout.Height(20));
-        EditorStyles.label.fontSize = 10;
-        EditorStyles.label.fontStyle = FontStyle.Normal;
+        UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Bold;
+        UnityEditor.EditorStyles.label.fontSize = 14;
+        UnityEditor.EditorGUILayout.LabelField("There are no packages installed!",
+                                               UnityEngine.GUILayout.Height(20));
+        UnityEditor.EditorStyles.label.fontSize = 10;
+        UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Normal;
       }
 
-      EditorGUILayout.EndVertical();
-      EditorGUILayout.EndScrollView();
+      UnityEditor.EditorGUILayout.EndVertical();
+      UnityEditor.EditorGUILayout.EndScrollView();
     }
 
     /// <summary>
-    /// Draws the current list of available online packages.
+    ///   Draws the current list of available online packages.
     /// </summary>
     void DrawOnline() {
       this.DrawOnlineHeader();
 
       // display all of the packages
-      this.scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition : this.scrollPosition);
-      EditorGUILayout.BeginVertical();
+      this._scroll_position =
+          UnityEditor.EditorGUILayout.BeginScrollView(scrollPosition : this._scroll_position);
+      UnityEditor.EditorGUILayout.BeginVertical();
 
       if (this.availablePackages != null) {
         this.DrawPackages(packages : this.availablePackages);
       }
 
-      var showMoreStyle = new GUIStyle();
-      if (Application.HasProLicense()) {
-        showMoreStyle.normal.background = this.MakeTex(20, 20, col : new Color(0.05f, 0.05f, 0.05f));
+      var show_more_style = new UnityEngine.GUIStyle();
+      if (UnityEngine.Application.HasProLicense()) {
+        show_more_style.normal.background =
+            this.MakeTex(20, 20, col : new UnityEngine.Color(0.05f, 0.05f, 0.05f));
       } else {
-        showMoreStyle.normal.background = this.MakeTex(20, 20, col : new Color(0.4f, 0.4f, 0.4f));
+        show_more_style.normal.background =
+            this.MakeTex(20, 20, col : new UnityEngine.Color(0.4f, 0.4f, 0.4f));
       }
 
-      EditorGUILayout.BeginVertical(style : showMoreStyle);
+      UnityEditor.EditorGUILayout.BeginVertical(style : show_more_style);
       // allow the user to dislay more results
-      if (GUILayout.Button("Show More", GUILayout.Width(120))) {
-        this.numberToSkip += this.numberToGet;
+      if (UnityEngine.GUILayout.Button("Show More", UnityEngine.GUILayout.Width(120))) {
+        this.numberToSkip += this._number_to_get;
         this.availablePackages.AddRange(collection : NugetHelper.Search(search_term :
-                                                                        this.onlineSearchTerm != "Search"
-                                                                            ? this.onlineSearchTerm
+                                                                        this._online_search_term != "Search"
+                                                                            ? this._online_search_term
                                                                             : string.Empty,
                                                                         include_all_versions :
-                                                                        this.showAllOnlineVersions,
+                                                                        this._show_all_online_versions,
                                                                         include_prerelease : this
-                                                                            .showOnlinePrerelease,
-                                                                        number_to_get : this.numberToGet,
+                                                                            ._show_online_prerelease,
+                                                                        number_to_get : this._number_to_get,
                                                                         number_to_skip : this.numberToSkip));
       }
 
-      EditorGUILayout.EndVertical();
+      UnityEditor.EditorGUILayout.EndVertical();
 
-      EditorGUILayout.EndVertical();
-      EditorGUILayout.EndScrollView();
+      UnityEditor.EditorGUILayout.EndVertical();
+      UnityEditor.EditorGUILayout.EndScrollView();
     }
 
-    void DrawPackages(List<NugetPackage> packages) {
-      var backgroundStyle = this.GetBackgroundStyle();
-      var contrastStyle = this.GetContrastStyle();
+    void DrawPackages(System.Collections.Generic.List<NugetPackage> packages) {
+      var background_style = this.GetBackgroundStyle();
+      var contrast_style = this.GetContrastStyle();
 
       for (var i = 0; i < packages.Count; i++) {
-        EditorGUILayout.BeginVertical(style : backgroundStyle);
+        UnityEditor.EditorGUILayout.BeginVertical(style : background_style);
         this.DrawPackage(package : packages[index : i],
-                         packageStyle : backgroundStyle,
-                         contrastStyle : contrastStyle);
-        EditorGUILayout.EndVertical();
+                         package_style : background_style,
+                         contrast_style : contrast_style);
+        UnityEditor.EditorGUILayout.EndVertical();
 
         // swap styles
-        var tempStyle = backgroundStyle;
-        backgroundStyle = contrastStyle;
-        contrastStyle = tempStyle;
+        var temp_style = background_style;
+        background_style = contrast_style;
+        contrast_style = temp_style;
       }
     }
 
     /// <summary>
-    /// Draws the header which allows filtering the online list of packages.
+    ///   Draws the header which allows filtering the online list of packages.
     /// </summary>
     void DrawOnlineHeader() {
-      var headerStyle = new GUIStyle();
-      if (Application.HasProLicense()) {
-        headerStyle.normal.background = this.MakeTex(20, 20, col : new Color(0.05f, 0.05f, 0.05f));
+      var header_style = new UnityEngine.GUIStyle();
+      if (UnityEngine.Application.HasProLicense()) {
+        header_style.normal.background =
+            this.MakeTex(20, 20, col : new UnityEngine.Color(0.05f, 0.05f, 0.05f));
       } else {
-        headerStyle.normal.background = this.MakeTex(20, 20, col : new Color(0.4f, 0.4f, 0.4f));
+        header_style.normal.background = this.MakeTex(20, 20, col : new UnityEngine.Color(0.4f, 0.4f, 0.4f));
       }
 
-      EditorGUILayout.BeginVertical(style : headerStyle);
+      UnityEditor.EditorGUILayout.BeginVertical(style : header_style);
       {
-        EditorGUILayout.BeginHorizontal();
+        UnityEditor.EditorGUILayout.BeginHorizontal();
         {
-          var showAllVersionsTemp =
-              EditorGUILayout.Toggle("Show All Versions", value : this.showAllOnlineVersions);
-          if (showAllVersionsTemp != this.showAllOnlineVersions) {
-            this.showAllOnlineVersions = showAllVersionsTemp;
+          var show_all_versions_temp =
+              UnityEditor.EditorGUILayout.Toggle("Show All Versions", value : this._show_all_online_versions);
+          if (show_all_versions_temp != this._show_all_online_versions) {
+            this._show_all_online_versions = show_all_versions_temp;
             this.UpdateOnlinePackages();
           }
 
-          if (GUILayout.Button("Refresh", GUILayout.Width(60))) {
+          if (UnityEngine.GUILayout.Button("Refresh", UnityEngine.GUILayout.Width(60))) {
             this.Refresh(true);
           }
         }
-        EditorGUILayout.EndHorizontal();
+        UnityEditor.EditorGUILayout.EndHorizontal();
 
-        var showPrereleaseTemp = EditorGUILayout.Toggle("Show Prerelease", value : this.showOnlinePrerelease);
-        if (showPrereleaseTemp != this.showOnlinePrerelease) {
-          this.showOnlinePrerelease = showPrereleaseTemp;
+        var show_prerelease_temp =
+            UnityEditor.EditorGUILayout.Toggle("Show Prerelease", value : this._show_online_prerelease);
+        if (show_prerelease_temp != this._show_online_prerelease) {
+          this._show_online_prerelease = show_prerelease_temp;
           this.UpdateOnlinePackages();
         }
 
-        var enterPressed = Event.current.Equals(obj : Event.KeyboardEvent("return"));
+        var enter_pressed = UnityEngine.Event.current.Equals(obj : UnityEngine.Event.KeyboardEvent("return"));
 
-        EditorGUILayout.BeginHorizontal();
+        UnityEditor.EditorGUILayout.BeginHorizontal();
         {
-          var oldFontSize = GUI.skin.textField.fontSize;
-          GUI.skin.textField.fontSize = 25;
-          this.onlineSearchTerm =
-              EditorGUILayout.TextField(text : this.onlineSearchTerm, GUILayout.Height(30));
+          var old_font_size = UnityEngine.GUI.skin.textField.fontSize;
+          UnityEngine.GUI.skin.textField.fontSize = 25;
+          this._online_search_term =
+              UnityEditor.EditorGUILayout.TextField(text : this._online_search_term,
+                                                    UnityEngine.GUILayout.Height(30));
 
-          if (GUILayout.Button("Search", GUILayout.Width(100), GUILayout.Height(28))) {
+          if (UnityEngine.GUILayout.Button("Search",
+                                           UnityEngine.GUILayout.Width(100),
+                                           UnityEngine.GUILayout.Height(28))) {
             // the search button emulates the Enter key
-            enterPressed = true;
+            enter_pressed = true;
           }
 
-          GUI.skin.textField.fontSize = oldFontSize;
+          UnityEngine.GUI.skin.textField.fontSize = old_font_size;
         }
-        EditorGUILayout.EndHorizontal();
+        UnityEditor.EditorGUILayout.EndHorizontal();
 
         // search only if the enter key is pressed
-        if (enterPressed) {
+        if (enter_pressed) {
           // reset the number to skip
           this.numberToSkip = 0;
           this.UpdateOnlinePackages();
         }
       }
-      EditorGUILayout.EndVertical();
+      UnityEditor.EditorGUILayout.EndVertical();
     }
 
     /// <summary>
-    /// Draws the header which allows filtering the installed list of packages.
+    ///   Draws the header which allows filtering the installed list of packages.
     /// </summary>
     void DrawInstalledHeader() {
-      var headerStyle = new GUIStyle();
-      if (Application.HasProLicense()) {
-        headerStyle.normal.background = this.MakeTex(20, 20, col : new Color(0.05f, 0.05f, 0.05f));
+      var header_style = new UnityEngine.GUIStyle();
+      if (UnityEngine.Application.HasProLicense()) {
+        header_style.normal.background =
+            this.MakeTex(20, 20, col : new UnityEngine.Color(0.05f, 0.05f, 0.05f));
       } else {
-        headerStyle.normal.background = this.MakeTex(20, 20, col : new Color(0.4f, 0.4f, 0.4f));
+        header_style.normal.background = this.MakeTex(20, 20, col : new UnityEngine.Color(0.4f, 0.4f, 0.4f));
       }
 
-      EditorGUILayout.BeginVertical(style : headerStyle);
+      UnityEditor.EditorGUILayout.BeginVertical(style : header_style);
       {
-        var enterPressed = Event.current.Equals(obj : Event.KeyboardEvent("return"));
+        var enter_pressed = UnityEngine.Event.current.Equals(obj : UnityEngine.Event.KeyboardEvent("return"));
 
-        EditorGUILayout.BeginHorizontal();
+        UnityEditor.EditorGUILayout.BeginHorizontal();
         {
-          var oldFontSize = GUI.skin.textField.fontSize;
-          GUI.skin.textField.fontSize = 25;
-          this.installedSearchTermEditBox =
-              EditorGUILayout.TextField(text : this.installedSearchTermEditBox, GUILayout.Height(30));
+          var old_font_size = UnityEngine.GUI.skin.textField.fontSize;
+          UnityEngine.GUI.skin.textField.fontSize = 25;
+          this._installed_search_term_edit_box =
+              UnityEditor.EditorGUILayout.TextField(text : this._installed_search_term_edit_box,
+                                                    UnityEngine.GUILayout.Height(30));
 
-          if (GUILayout.Button("Search", GUILayout.Width(100), GUILayout.Height(28))) {
+          if (UnityEngine.GUILayout.Button("Search",
+                                           UnityEngine.GUILayout.Width(100),
+                                           UnityEngine.GUILayout.Height(28))) {
             // the search button emulates the Enter key
-            enterPressed = true;
+            enter_pressed = true;
           }
 
-          GUI.skin.textField.fontSize = oldFontSize;
+          UnityEngine.GUI.skin.textField.fontSize = old_font_size;
         }
-        EditorGUILayout.EndHorizontal();
+        UnityEditor.EditorGUILayout.EndHorizontal();
 
         // search only if the enter key is pressed
-        if (enterPressed) {
-          this.installedSearchTerm = this.installedSearchTermEditBox;
+        if (enter_pressed) {
+          this._installed_search_term = this._installed_search_term_edit_box;
         }
       }
-      EditorGUILayout.EndVertical();
+      UnityEditor.EditorGUILayout.EndVertical();
     }
 
     /// <summary>
-    /// Draws the header for the Updates tab.
+    ///   Draws the header for the Updates tab.
     /// </summary>
     void DrawUpdatesHeader() {
-      var headerStyle = new GUIStyle();
-      if (Application.HasProLicense()) {
-        headerStyle.normal.background = this.MakeTex(20, 20, col : new Color(0.05f, 0.05f, 0.05f));
+      var header_style = new UnityEngine.GUIStyle();
+      if (UnityEngine.Application.HasProLicense()) {
+        header_style.normal.background =
+            this.MakeTex(20, 20, col : new UnityEngine.Color(0.05f, 0.05f, 0.05f));
       } else {
-        headerStyle.normal.background = this.MakeTex(20, 20, col : new Color(0.4f, 0.4f, 0.4f));
+        header_style.normal.background = this.MakeTex(20, 20, col : new UnityEngine.Color(0.4f, 0.4f, 0.4f));
       }
 
-      EditorGUILayout.BeginVertical(style : headerStyle);
+      UnityEditor.EditorGUILayout.BeginVertical(style : header_style);
       {
-        EditorGUILayout.BeginHorizontal();
+        UnityEditor.EditorGUILayout.BeginHorizontal();
         {
-          var showAllVersionsTemp =
-              EditorGUILayout.Toggle("Show All Versions", value : this.showAllUpdateVersions);
-          if (showAllVersionsTemp != this.showAllUpdateVersions) {
-            this.showAllUpdateVersions = showAllVersionsTemp;
+          var show_all_versions_temp =
+              UnityEditor.EditorGUILayout.Toggle("Show All Versions", value : this._show_all_update_versions);
+          if (show_all_versions_temp != this._show_all_update_versions) {
+            this._show_all_update_versions = show_all_versions_temp;
             this.UpdateUpdatePackages();
           }
 
-          if (GUILayout.Button("Install All Updates", GUILayout.Width(150))) {
+          if (UnityEngine.GUILayout.Button("Install All Updates", UnityEngine.GUILayout.Width(150))) {
             NugetHelper.UpdateAll(updates : this.updatePackages,
                                   packages_to_update : NugetHelper.InstalledPackages);
             NugetHelper.UpdateInstalledPackages();
             this.UpdateUpdatePackages();
           }
 
-          if (GUILayout.Button("Refresh", GUILayout.Width(60))) {
+          if (UnityEngine.GUILayout.Button("Refresh", UnityEngine.GUILayout.Width(60))) {
             this.Refresh(true);
           }
         }
-        EditorGUILayout.EndHorizontal();
+        UnityEditor.EditorGUILayout.EndHorizontal();
 
-        var showPrereleaseTemp =
-            EditorGUILayout.Toggle("Show Prerelease", value : this.showPrereleaseUpdates);
-        if (showPrereleaseTemp != this.showPrereleaseUpdates) {
-          this.showPrereleaseUpdates = showPrereleaseTemp;
+        var show_prerelease_temp =
+            UnityEditor.EditorGUILayout.Toggle("Show Prerelease", value : this._show_prerelease_updates);
+        if (show_prerelease_temp != this._show_prerelease_updates) {
+          this._show_prerelease_updates = show_prerelease_temp;
           this.UpdateUpdatePackages();
         }
 
-        var enterPressed = Event.current.Equals(obj : Event.KeyboardEvent("return"));
+        var enter_pressed = UnityEngine.Event.current.Equals(obj : UnityEngine.Event.KeyboardEvent("return"));
 
-        EditorGUILayout.BeginHorizontal();
+        UnityEditor.EditorGUILayout.BeginHorizontal();
         {
-          var oldFontSize = GUI.skin.textField.fontSize;
-          GUI.skin.textField.fontSize = 25;
-          this.updatesSearchTerm =
-              EditorGUILayout.TextField(text : this.updatesSearchTerm, GUILayout.Height(30));
+          var old_font_size = UnityEngine.GUI.skin.textField.fontSize;
+          UnityEngine.GUI.skin.textField.fontSize = 25;
+          this._updates_search_term =
+              UnityEditor.EditorGUILayout.TextField(text : this._updates_search_term,
+                                                    UnityEngine.GUILayout.Height(30));
 
-          if (GUILayout.Button("Search", GUILayout.Width(100), GUILayout.Height(28))) {
+          if (UnityEngine.GUILayout.Button("Search",
+                                           UnityEngine.GUILayout.Width(100),
+                                           UnityEngine.GUILayout.Height(28))) {
             // the search button emulates the Enter key
-            enterPressed = true;
+            enter_pressed = true;
           }
 
-          GUI.skin.textField.fontSize = oldFontSize;
+          UnityEngine.GUI.skin.textField.fontSize = old_font_size;
         }
-        EditorGUILayout.EndHorizontal();
+        UnityEditor.EditorGUILayout.EndHorizontal();
 
         // search only if the enter key is pressed
-        if (enterPressed) {
-          if (this.updatesSearchTerm != "Search") {
-            this.filteredUpdatePackages = this.updatePackages
-                                              .Where(x => x._Id.ToLower()
-                                                           .Contains(value : this.updatesSearchTerm)
-                                                          || x.Title.ToLower()
-                                                              .Contains(value : this.updatesSearchTerm))
-                                              .ToList();
+        if (enter_pressed) {
+          if (this._updates_search_term != "Search") {
+            this._filtered_update_packages = System.Linq.Enumerable.ToList(source : System.Linq.Enumerable.Where(source : this.updatePackages,
+                                                                                                                 x => x._Id.ToLower()
+                                                                                                                       .Contains(value : this
+                                                                                                                                     ._updates_search_term)
+                                                                                                                      || x.Title.ToLower()
+                                                                                                                          .Contains(value : this
+                                                                                                                                        ._updates_search_term)));
           }
         }
       }
-      EditorGUILayout.EndVertical();
+      UnityEditor.EditorGUILayout.EndVertical();
     }
 
-    Dictionary<string, bool> foldouts = new Dictionary<string, bool>();
-
     /// <summary>
-    /// Draws the given <see cref="NugetPackage"/>.
+    ///   Draws the given <see cref="NugetPackage" />.
     /// </summary>
-    /// <param name="package">The <see cref="NugetPackage"/> to draw.</param>
-    void DrawPackage(NugetPackage package, GUIStyle packageStyle, GUIStyle contrastStyle) {
-      var installedPackages = NugetHelper.InstalledPackages;
-      var installed = installedPackages.FirstOrDefault(p => p._Id == package._Id);
+    /// <param name="package">The <see cref="NugetPackage" /> to draw.</param>
+    void DrawPackage(NugetPackage package,
+                     UnityEngine.GUIStyle package_style,
+                     UnityEngine.GUIStyle contrast_style) {
+      var installed_packages = NugetHelper.InstalledPackages;
+      var installed = System.Linq.Enumerable.FirstOrDefault(source : installed_packages, p => p._Id == package._Id);
 
-      EditorGUILayout.BeginHorizontal();
+      UnityEditor.EditorGUILayout.BeginHorizontal();
       {
         // The Unity GUI system (in the Editor) is terrible.  This probably requires some explanation.
         // Every time you use a Horizontal block, Unity appears to divide the space evenly.
         // (i.e. 2 components have half of the window width, 3 components have a third of the window width, etc)
         // GUILayoutUtility.GetRect is SUPPOSED to return a rect with the given height and width, but in the GUI layout.  It doesn't.
         // We have to use GUILayoutUtility to get SOME rect properties, but then manually calculate others.
-        EditorGUILayout.BeginHorizontal();
+        UnityEditor.EditorGUILayout.BeginHorizontal();
         {
-          const int iconSize = 32;
-          var padding = EditorStyles.label.padding.vertical;
-          var rect = GUILayoutUtility.GetRect(width : iconSize, height : iconSize);
+          const int icon_size = 32;
+          var padding = UnityEditor.EditorStyles.label.padding.vertical;
+          var rect = UnityEngine.GUILayoutUtility.GetRect(width : icon_size, height : icon_size);
           // only use GetRect's Y position.  It doesn't correctly set the width, height or X position.
 
           rect.x = padding;
           rect.y += padding;
-          rect.width = iconSize;
-          rect.height = iconSize;
+          rect.width = icon_size;
+          rect.height = icon_size;
 
           if (package.Icon != null) {
-            GUI.DrawTexture(position : rect, image : package.Icon, scaleMode : ScaleMode.StretchToFill);
+            UnityEngine.GUI.DrawTexture(position : rect,
+                                        image : package.Icon,
+                                        scaleMode : UnityEngine.ScaleMode.StretchToFill);
           } else {
-            GUI.DrawTexture(position : rect, image : this.defaultIcon, scaleMode : ScaleMode.StretchToFill);
+            UnityEngine.GUI.DrawTexture(position : rect,
+                                        image : this.defaultIcon,
+                                        scaleMode : UnityEngine.ScaleMode.StretchToFill);
           }
 
-          rect.x = iconSize + 2 * padding;
-          rect.width = this.position.width / 2 - (iconSize + padding);
+          rect.x = icon_size + 2 * padding;
+          rect.width = this.position.width / 2 - (icon_size + padding);
           rect.y -= padding; // This will leave the text aligned with the top of the image
 
-          EditorStyles.label.fontStyle = FontStyle.Bold;
-          EditorStyles.label.fontSize = 16;
+          UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Bold;
+          UnityEditor.EditorStyles.label.fontSize = 16;
 
-          var idSize = EditorStyles.label.CalcSize(content : new GUIContent(text : package._Id));
-          rect.y += (iconSize / 2 - idSize.y / 2) + padding;
-          GUI.Label(position : rect, text : package._Id, style : EditorStyles.label);
-          rect.x += idSize.x;
+          var id_size =
+              UnityEditor.EditorStyles.label.CalcSize(content :
+                                                      new UnityEngine.GUIContent(text : package._Id));
+          rect.y += icon_size / 2 - id_size.y / 2 + padding;
+          UnityEngine.GUI.Label(position : rect, text : package._Id, style : UnityEditor.EditorStyles.label);
+          rect.x += id_size.x;
 
-          EditorStyles.label.fontSize = 10;
-          EditorStyles.label.fontStyle = FontStyle.Normal;
+          UnityEditor.EditorStyles.label.fontSize = 10;
+          UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Normal;
 
-          var versionSize = EditorStyles.label.CalcSize(content : new GUIContent(text : package._Version));
-          rect.y += (idSize.y - versionSize.y - padding / 2);
+          var version_size =
+              UnityEditor.EditorStyles.label.CalcSize(content : new UnityEngine.GUIContent(text : package
+                                                          ._Version));
+          rect.y += id_size.y - version_size.y - padding / 2;
 
           if (!string.IsNullOrEmpty(value : package.Authors)) {
-            var authorLabel = string.Format("by {0}", arg0 : package.Authors);
-            var size = EditorStyles.label.CalcSize(content : new GUIContent(text : authorLabel));
-            GUI.Label(position : rect, text : authorLabel, style : EditorStyles.label);
+            var author_label = string.Format("by {0}", arg0 : package.Authors);
+            var size =
+                UnityEditor.EditorStyles.label.CalcSize(content : new
+                                                            UnityEngine.GUIContent(text : author_label));
+            UnityEngine.GUI.Label(position : rect,
+                                  text : author_label,
+                                  style : UnityEditor.EditorStyles.label);
             rect.x += size.x;
           }
 
           if (package.DownloadCount > 0) {
-            var downloadLabel = string.Format("{0} downloads", arg0 : package.DownloadCount.ToString("#,#"));
-            var size = EditorStyles.label.CalcSize(content : new GUIContent(text : downloadLabel));
-            GUI.Label(position : rect, text : downloadLabel, style : EditorStyles.label);
+            var download_label = string.Format("{0} downloads", arg0 : package.DownloadCount.ToString("#,#"));
+            var size =
+                UnityEditor.EditorStyles.label.CalcSize(content : new
+                                                            UnityEngine.GUIContent(text : download_label));
+            UnityEngine.GUI.Label(position : rect,
+                                  text : download_label,
+                                  style : UnityEditor.EditorStyles.label);
             rect.x += size.x;
           }
         }
 
-        GUILayout.FlexibleSpace();
+        UnityEngine.GUILayout.FlexibleSpace();
         if (installed != null && installed._Version != package._Version) {
-          GUILayout.Label(text : string.Format("Current Version {0}", arg0 : installed._Version));
+          UnityEngine.GUILayout.Label(text : string.Format("Current Version {0}", arg0 : installed._Version));
         }
 
-        GUILayout.Label(text : string.Format("Version {0}", arg0 : package._Version));
+        UnityEngine.GUILayout.Label(text : string.Format("Version {0}", arg0 : package._Version));
 
-        if (installedPackages.Contains(value : package)) {
+        if (System.Linq.Enumerable.Contains(source : installed_packages, value : package)) {
           // This specific version is installed
-          if (GUILayout.Button("Uninstall")) {
+          if (UnityEngine.GUILayout.Button("Uninstall")) {
             // TODO: Perhaps use a "mark as dirty" system instead of updating all of the data all the time? 
             NugetHelper.Uninstall(package : package);
             NugetHelper.UpdateInstalledPackages();
@@ -851,41 +914,41 @@
           if (installed != null) {
             if (installed < package) {
               // An older version is installed
-              if (GUILayout.Button("Update")) {
+              if (UnityEngine.GUILayout.Button("Update")) {
                 NugetHelper.Update(current_version : installed, new_version : package);
                 NugetHelper.UpdateInstalledPackages();
                 this.UpdateUpdatePackages();
               }
             } else if (installed > package) {
               // A newer version is installed
-              if (GUILayout.Button("Downgrade")) {
+              if (UnityEngine.GUILayout.Button("Downgrade")) {
                 NugetHelper.Update(current_version : installed, new_version : package);
                 NugetHelper.UpdateInstalledPackages();
                 this.UpdateUpdatePackages();
               }
             }
           } else {
-            if (GUILayout.Button("Install")) {
+            if (UnityEngine.GUILayout.Button("Install")) {
               NugetHelper.InstallIdentifier(package : package);
-              AssetDatabase.Refresh();
+              UnityEditor.AssetDatabase.Refresh();
               NugetHelper.UpdateInstalledPackages();
               this.UpdateUpdatePackages();
             }
           }
         }
 
-        EditorGUILayout.EndHorizontal();
+        UnityEditor.EditorGUILayout.EndHorizontal();
       }
-      EditorGUILayout.EndHorizontal();
+      UnityEditor.EditorGUILayout.EndHorizontal();
 
-      EditorGUILayout.Space();
-      EditorGUILayout.BeginHorizontal();
+      UnityEditor.EditorGUILayout.Space();
+      UnityEditor.EditorGUILayout.BeginHorizontal();
       {
-        EditorGUILayout.BeginVertical();
+        UnityEditor.EditorGUILayout.BeginVertical();
         {
           // Show the package details
-          EditorStyles.label.wordWrap = true;
-          EditorStyles.label.fontStyle = FontStyle.Normal;
+          UnityEditor.EditorStyles.label.wordWrap = true;
+          UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Normal;
 
           var summary = package.Summary;
           if (string.IsNullOrEmpty(value : summary)) {
@@ -893,7 +956,7 @@
           }
 
           if (!package.Title.Equals(value : package._Id,
-                                    comparisonType : StringComparison.InvariantCultureIgnoreCase)) {
+                                    comparisonType : System.StringComparison.InvariantCultureIgnoreCase)) {
             summary = string.Format("{0} - {1}", arg0 : package.Title, arg1 : summary);
           }
 
@@ -901,209 +964,218 @@
             summary = string.Format("{0}...", arg0 : summary.Substring(0, 237));
           }
 
-          EditorGUILayout.LabelField(label : summary);
+          UnityEditor.EditorGUILayout.LabelField(label : summary);
 
-          bool detailsFoldout;
-          var detailsFoldoutId = string.Format("{0}.{1}", arg0 : package._Id, "Details");
-          if (!this.foldouts.TryGetValue(key : detailsFoldoutId, value : out detailsFoldout)) {
-            this.foldouts[key : detailsFoldoutId] = detailsFoldout;
+          bool details_foldout;
+          var details_foldout_id = string.Format("{0}.{1}", arg0 : package._Id, "Details");
+          if (!this._foldouts.TryGetValue(key : details_foldout_id, value : out details_foldout)) {
+            this._foldouts[key : details_foldout_id] = details_foldout;
           }
 
-          detailsFoldout = EditorGUILayout.Foldout(foldout : detailsFoldout, "Details");
-          this.foldouts[key : detailsFoldoutId] = detailsFoldout;
+          details_foldout = UnityEditor.EditorGUILayout.Foldout(foldout : details_foldout, "Details");
+          this._foldouts[key : details_foldout_id] = details_foldout;
 
-          if (detailsFoldout) {
-            EditorGUI.indentLevel++;
+          if (details_foldout) {
+            UnityEditor.EditorGUI.indentLevel++;
             if (!string.IsNullOrEmpty(value : package.Description)) {
-              EditorGUILayout.LabelField("Description", style : EditorStyles.boldLabel);
-              EditorGUILayout.LabelField(label : package.Description);
+              UnityEditor.EditorGUILayout.LabelField("Description",
+                                                     style : UnityEditor.EditorStyles.boldLabel);
+              UnityEditor.EditorGUILayout.LabelField(label : package.Description);
             }
 
             if (!string.IsNullOrEmpty(value : package.ReleaseNotes)) {
-              EditorGUILayout.LabelField("Release Notes", style : EditorStyles.boldLabel);
-              EditorGUILayout.LabelField(label : package.ReleaseNotes);
+              UnityEditor.EditorGUILayout.LabelField("Release Notes",
+                                                     style : UnityEditor.EditorStyles.boldLabel);
+              UnityEditor.EditorGUILayout.LabelField(label : package.ReleaseNotes);
             }
 
             // Show project URL link
             if (!string.IsNullOrEmpty(value : package.ProjectUrl)) {
-              EditorGUILayout.LabelField("Project Url", style : EditorStyles.boldLabel);
+              UnityEditor.EditorGUILayout.LabelField("Project Url",
+                                                     style : UnityEditor.EditorStyles.boldLabel);
               GUILayoutLink(url : package.ProjectUrl);
-              GUILayout.Space(4f);
+              UnityEngine.GUILayout.Space(4f);
             }
 
             // Show the dependencies
             if (package.Dependencies.Count > 0) {
-              EditorStyles.label.wordWrap = true;
-              EditorStyles.label.fontStyle = FontStyle.Italic;
-              var builder = new StringBuilder();
+              UnityEditor.EditorStyles.label.wordWrap = true;
+              UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Italic;
+              var builder = new System.Text.StringBuilder();
 
-              var frameworkGroup =
+              var framework_group =
                   NugetHelper.GetBestDependencyFrameworkGroupForCurrentSettings(package : package);
-              foreach (var dependency in frameworkGroup.Dependencies) {
+              foreach (var dependency in framework_group.Dependencies) {
                 builder.Append(value : string.Format(" {0} {1};",
                                                      arg0 : dependency._Id,
                                                      arg1 : dependency._Version));
               }
 
-              EditorGUILayout.Space();
-              EditorGUILayout.LabelField(label : string.Format("Depends on:{0}", arg0 : builder.ToString()));
-              EditorStyles.label.fontStyle = FontStyle.Normal;
+              UnityEditor.EditorGUILayout.Space();
+              UnityEditor.EditorGUILayout.LabelField(label : string.Format("Depends on:{0}", arg0 : builder));
+              UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Normal;
             }
 
             // Create the style for putting a box around the 'Clone' button
-            var cloneButtonBoxStyle = new GUIStyle("box");
-            cloneButtonBoxStyle.stretchWidth = false;
-            cloneButtonBoxStyle.margin.top = 0;
-            cloneButtonBoxStyle.margin.bottom = 0;
-            cloneButtonBoxStyle.padding.bottom = 4;
+            var clone_button_box_style = new UnityEngine.GUIStyle("box");
+            clone_button_box_style.stretchWidth = false;
+            clone_button_box_style.margin.top = 0;
+            clone_button_box_style.margin.bottom = 0;
+            clone_button_box_style.padding.bottom = 4;
 
-            var normalButtonBoxStyle = new GUIStyle(other : cloneButtonBoxStyle);
-            normalButtonBoxStyle.normal.background = packageStyle.normal.background;
+            var normal_button_box_style = new UnityEngine.GUIStyle(other : clone_button_box_style);
+            normal_button_box_style.normal.background = package_style.normal.background;
 
-            var showCloneWindow = this.openCloneWindows.Contains(item : package);
-            cloneButtonBoxStyle.normal.background =
-                showCloneWindow ? contrastStyle.normal.background : packageStyle.normal.background;
+            var show_clone_window = this._open_clone_windows.Contains(item : package);
+            clone_button_box_style.normal.background =
+                show_clone_window ? contrast_style.normal.background : package_style.normal.background;
 
             // Create a simillar style for the 'Clone' window
-            var cloneWindowStyle = new GUIStyle(other : cloneButtonBoxStyle);
-            cloneWindowStyle.padding = new RectOffset(6,
-                                                      6,
-                                                      2,
-                                                      6);
+            var clone_window_style = new UnityEngine.GUIStyle(other : clone_button_box_style);
+            clone_window_style.padding = new UnityEngine.RectOffset(6,
+                                                                    6,
+                                                                    2,
+                                                                    6);
 
             // Show button bar
-            EditorGUILayout.BeginHorizontal();
+            UnityEditor.EditorGUILayout.BeginHorizontal();
             {
               if (package.RepositoryType == RepositoryType.Git
                   || package.RepositoryType == RepositoryType.TfsGit) {
                 if (!string.IsNullOrEmpty(value : package.RepositoryUrl)) {
-                  EditorGUILayout.BeginHorizontal(style : cloneButtonBoxStyle);
+                  UnityEditor.EditorGUILayout.BeginHorizontal(style : clone_button_box_style);
                   {
-                    var cloneButtonStyle = new GUIStyle(other : GUI.skin.button);
-                    cloneButtonStyle.normal =
-                        showCloneWindow ? cloneButtonStyle.active : cloneButtonStyle.normal;
-                    if (GUILayout.Button("Clone", style : cloneButtonStyle, GUILayout.ExpandWidth(false))) {
-                      showCloneWindow = !showCloneWindow;
+                    var clone_button_style = new UnityEngine.GUIStyle(other : UnityEngine.GUI.skin.button);
+                    clone_button_style.normal =
+                        show_clone_window ? clone_button_style.active : clone_button_style.normal;
+                    if (UnityEngine.GUILayout.Button("Clone",
+                                                     style : clone_button_style,
+                                                     UnityEngine.GUILayout.ExpandWidth(false))) {
+                      show_clone_window = !show_clone_window;
                     }
 
-                    if (showCloneWindow)
-                      this.openCloneWindows.Add(item : package);
-                    else
-                      this.openCloneWindows.Remove(item : package);
+                    if (show_clone_window) {
+                      this._open_clone_windows.Add(item : package);
+                    } else {
+                      this._open_clone_windows.Remove(item : package);
+                    }
                   }
-                  EditorGUILayout.EndHorizontal();
+                  UnityEditor.EditorGUILayout.EndHorizontal();
                 }
               }
 
               if (!string.IsNullOrEmpty(value : package.LicenseUrl)
                   && package.LicenseUrl != "http://your_license_url_here") {
                 // Creaete a box around the license button to keep it alligned with Clone button
-                EditorGUILayout.BeginHorizontal(style : normalButtonBoxStyle);
+                UnityEditor.EditorGUILayout.BeginHorizontal(style : normal_button_box_style);
                 // Show the license button
-                if (GUILayout.Button("View License", GUILayout.ExpandWidth(false))) {
-                  Application.OpenURL(url : package.LicenseUrl);
+                if (UnityEngine.GUILayout.Button("View License", UnityEngine.GUILayout.ExpandWidth(false))) {
+                  UnityEngine.Application.OpenURL(url : package.LicenseUrl);
                 }
 
-                EditorGUILayout.EndHorizontal();
+                UnityEditor.EditorGUILayout.EndHorizontal();
               }
             }
-            EditorGUILayout.EndHorizontal();
+            UnityEditor.EditorGUILayout.EndHorizontal();
 
-            if (showCloneWindow) {
-              EditorGUILayout.BeginVertical(style : cloneWindowStyle);
+            if (show_clone_window) {
+              UnityEditor.EditorGUILayout.BeginVertical(style : clone_window_style);
               {
                 // Clone latest label
-                EditorGUILayout.BeginHorizontal();
-                GUILayout.Space(20f);
-                EditorGUILayout.LabelField("clone latest");
-                EditorGUILayout.EndHorizontal();
+                UnityEditor.EditorGUILayout.BeginHorizontal();
+                UnityEngine.GUILayout.Space(20f);
+                UnityEditor.EditorGUILayout.LabelField("clone latest");
+                UnityEditor.EditorGUILayout.EndHorizontal();
 
                 // Clone latest row
-                EditorGUILayout.BeginHorizontal();
+                UnityEditor.EditorGUILayout.BeginHorizontal();
                 {
-                  if (GUILayout.Button("Copy", GUILayout.ExpandWidth(false))) {
-                    GUI.FocusControl(name : package._Id + package._Version + "repoUrl");
-                    GUIUtility.systemCopyBuffer = package.RepositoryUrl;
+                  if (UnityEngine.GUILayout.Button("Copy", UnityEngine.GUILayout.ExpandWidth(false))) {
+                    UnityEngine.GUI.FocusControl(name : package._Id + package._Version + "repoUrl");
+                    UnityEngine.GUIUtility.systemCopyBuffer = package.RepositoryUrl;
                   }
 
-                  GUI.SetNextControlName(name : package._Id + package._Version + "repoUrl");
-                  EditorGUILayout.TextField(text : package.RepositoryUrl);
+                  UnityEngine.GUI.SetNextControlName(name : package._Id + package._Version + "repoUrl");
+                  UnityEditor.EditorGUILayout.TextField(text : package.RepositoryUrl);
                 }
-                EditorGUILayout.EndHorizontal();
+                UnityEditor.EditorGUILayout.EndHorizontal();
 
                 // Clone @ commit label
-                GUILayout.Space(4f);
-                EditorGUILayout.BeginHorizontal();
-                GUILayout.Space(20f);
-                EditorGUILayout.LabelField("clone @ commit");
-                EditorGUILayout.EndHorizontal();
+                UnityEngine.GUILayout.Space(4f);
+                UnityEditor.EditorGUILayout.BeginHorizontal();
+                UnityEngine.GUILayout.Space(20f);
+                UnityEditor.EditorGUILayout.LabelField("clone @ commit");
+                UnityEditor.EditorGUILayout.EndHorizontal();
 
                 // Clone @ commit row
-                EditorGUILayout.BeginHorizontal();
+                UnityEditor.EditorGUILayout.BeginHorizontal();
                 {
                   // Create the three commands a user will need to run to get the repo @ the commit. Intentionally leave off the last newline for better UI appearance
                   var commands = string.Format("git clone {0} {1} --no-checkout{2}cd {1}{2}git checkout {3}",
                                                package.RepositoryUrl,
                                                package._Id,
-                                               Environment.NewLine,
+                                               System.Environment.NewLine,
                                                package.RepositoryCommit);
 
-                  if (GUILayout.Button("Copy", GUILayout.ExpandWidth(false))) {
-                    GUI.FocusControl(name : package._Id + package._Version + "commands");
+                  if (UnityEngine.GUILayout.Button("Copy", UnityEngine.GUILayout.ExpandWidth(false))) {
+                    UnityEngine.GUI.FocusControl(name : package._Id + package._Version + "commands");
 
                     // Add a newline so the last command will execute when pasted to the CL
-                    GUIUtility.systemCopyBuffer = (commands + Environment.NewLine);
+                    UnityEngine.GUIUtility.systemCopyBuffer = commands + System.Environment.NewLine;
                   }
 
-                  EditorGUILayout.BeginVertical();
-                  GUI.SetNextControlName(name : package._Id + package._Version + "commands");
-                  EditorGUILayout.TextArea(text : commands);
-                  EditorGUILayout.EndVertical();
+                  UnityEditor.EditorGUILayout.BeginVertical();
+                  UnityEngine.GUI.SetNextControlName(name : package._Id + package._Version + "commands");
+                  UnityEditor.EditorGUILayout.TextArea(text : commands);
+                  UnityEditor.EditorGUILayout.EndVertical();
                 }
-                EditorGUILayout.EndHorizontal();
+                UnityEditor.EditorGUILayout.EndHorizontal();
               }
-              EditorGUILayout.EndVertical();
+              UnityEditor.EditorGUILayout.EndVertical();
             }
 
-            EditorGUI.indentLevel--;
+            UnityEditor.EditorGUI.indentLevel--;
           }
 
-          EditorGUILayout.Separator();
-          EditorGUILayout.Separator();
+          UnityEditor.EditorGUILayout.Separator();
+          UnityEditor.EditorGUILayout.Separator();
         }
-        EditorGUILayout.EndVertical();
+        UnityEditor.EditorGUILayout.EndVertical();
       }
-      EditorGUILayout.EndHorizontal();
+      UnityEditor.EditorGUILayout.EndHorizontal();
     }
 
     public static void GUILayoutLink(string url) {
-      var hyperLinkStyle = new GUIStyle(other : GUI.skin.label);
-      hyperLinkStyle.stretchWidth = false;
-      hyperLinkStyle.richText = true;
+      var hyper_link_style = new UnityEngine.GUIStyle(other : UnityEngine.GUI.skin.label);
+      hyper_link_style.stretchWidth = false;
+      hyper_link_style.richText = true;
 
-      var colorFormatString = "<color=#add8e6ff>{0}</color>";
+      var color_format_string = "<color=#add8e6ff>{0}</color>";
 
       var underline = new string('_', count : url.Length);
 
-      var formattedUrl = string.Format(format : colorFormatString, arg0 : url);
-      var formattedUnderline = string.Format(format : colorFormatString, arg0 : underline);
-      var urlRect = GUILayoutUtility.GetRect(content : new GUIContent(text : url), style : hyperLinkStyle);
+      var formatted_url = string.Format(format : color_format_string, arg0 : url);
+      var formatted_underline = string.Format(format : color_format_string, arg0 : underline);
+      var url_rect =
+          UnityEngine.GUILayoutUtility.GetRect(content : new UnityEngine.GUIContent(text : url),
+                                               style : hyper_link_style);
 
       // Update rect for indentation
       {
-        var indentedUrlRect = EditorGUI.IndentedRect(source : urlRect);
-        var delta = indentedUrlRect.x - urlRect.x;
-        indentedUrlRect.width += delta;
-        urlRect = indentedUrlRect;
+        var indented_url_rect = UnityEditor.EditorGUI.IndentedRect(source : url_rect);
+        var delta = indented_url_rect.x - url_rect.x;
+        indented_url_rect.width += delta;
+        url_rect = indented_url_rect;
       }
 
-      GUI.Label(position : urlRect, text : formattedUrl, style : hyperLinkStyle);
-      GUI.Label(position : urlRect, text : formattedUnderline, style : hyperLinkStyle);
+      UnityEngine.GUI.Label(position : url_rect, text : formatted_url, style : hyper_link_style);
+      UnityEngine.GUI.Label(position : url_rect, text : formatted_underline, style : hyper_link_style);
 
-      EditorGUIUtility.AddCursorRect(position : urlRect, mouse : MouseCursor.Link);
-      if (urlRect.Contains(point : Event.current.mousePosition)) {
-        if (Event.current.type == EventType.MouseUp)
-          Application.OpenURL(url : url);
+      UnityEditor.EditorGUIUtility.AddCursorRect(position : url_rect, mouse : UnityEditor.MouseCursor.Link);
+      if (url_rect.Contains(point : UnityEngine.Event.current.mousePosition)) {
+        if (UnityEngine.Event.current.type == UnityEngine.EventType.MouseUp) {
+          UnityEngine.Application.OpenURL(url : url);
+        }
       }
     }
   }

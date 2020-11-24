@@ -1,199 +1,203 @@
 ﻿namespace NuGetForUnity.Editor {
-  using System.Collections.Generic;
-  using System.Linq;
-  using UnityEditor;
-  using UnityEngine;
+  using Enumerable = System.Linq.Enumerable;
 
+  /// <inheritdoc />
   /// <summary>
-  /// A viewer for all of the packages and their dependencies currently installed in the project.
+  ///   A viewer for all of the packages and their dependencies currently installed in the project.
   /// </summary>
-  public class DependencyTreeViewer : EditorWindow {
+  public class DependencyTreeViewer : UnityEditor.EditorWindow {
     /// <summary>
-    /// Opens the NuGet Package Manager Window.
+    ///   The titles of the tabs in the window.
     /// </summary>
-    [MenuItem("NuGet/Show Dependency Tree", false, 5)]
-    protected static void DisplayDependencyTree() { GetWindow<DependencyTreeViewer>(); }
+    readonly string[] _tab_titles = {"Dependency Tree", "Who Depends on Me?"};
 
     /// <summary>
-    /// The titles of the tabs in the window.
+    ///   The currently selected tab in the window.
     /// </summary>
-    readonly string[] tabTitles = {"Dependency Tree", "Who Depends on Me?"};
+    int _current_tab;
+
+    System.Collections.Generic.Dictionary<NugetPackage, bool> _expanded =
+        new System.Collections.Generic.Dictionary<NugetPackage, bool>();
 
     /// <summary>
-    /// The currently selected tab in the window.
+    ///   The array of currently installed package IDs.
     /// </summary>
-    int currentTab;
-
-    int selectedPackageIndex = -1;
+    string[] _installed_package_ids;
 
     /// <summary>
-    /// The list of packages that depend on the specified package.
+    ///   The list of currently installed packages.
     /// </summary>
-    List<NugetPackage> parentPackages = new List<NugetPackage>();
+    System.Collections.Generic.List<NugetPackage> _installed_packages;
 
     /// <summary>
-    /// The list of currently installed packages.
+    ///   The list of packages that depend on the specified package.
     /// </summary>
-    List<NugetPackage> installedPackages;
+    System.Collections.Generic.List<NugetPackage> _parent_packages =
+        new System.Collections.Generic.List<NugetPackage>();
+
+    System.Collections.Generic.List<NugetPackage> _roots;
+
+    UnityEngine.Vector2 _scroll_position;
+
+    int _selected_package_index = -1;
 
     /// <summary>
-    /// The array of currently installed package IDs.
-    /// </summary>
-    string[] installedPackageIds;
-
-    Dictionary<NugetPackage, bool> expanded = new Dictionary<NugetPackage, bool>();
-
-    List<NugetPackage> roots;
-
-    Vector2 scrollPosition;
-
-    /// <summary>
-    /// Called when enabling the window.
+    ///   Called when enabling the window.
     /// </summary>
     void OnEnable() {
       try {
-        // reload the NuGet.config file, in case it was changed after Unity opened, but before the manager window opened (now)
+        // reload the nuget.config file, in case it was changed after Unity opened, but before the manager window opened (now)
         NugetHelper.LoadNugetConfigFile();
 
         // set the window title
-        this.titleContent = new GUIContent("Dependencies");
+        this.titleContent = new UnityEngine.GUIContent("Dependencies");
 
-        EditorUtility.DisplayProgressBar("Building Dependency Tree", "Reading installed packages...", 0.5f);
+        UnityEditor.EditorUtility.DisplayProgressBar("Building Dependency Tree",
+                                                     "Reading installed packages...",
+                                                     0.5f);
 
         NugetHelper.UpdateInstalledPackages();
-        this.installedPackages = NugetHelper.InstalledPackages.ToList();
-        var installedPackageNames = new List<string>();
+        this._installed_packages = Enumerable.ToList(NugetHelper.InstalledPackages);
+        var installed_package_names = new System.Collections.Generic.List<string>();
 
-        foreach (var package in this.installedPackages) {
-          if (!this.expanded.ContainsKey(key : package)) {
-            this.expanded.Add(key : package, false);
-          } else {
-            //Debug.LogErrorFormat("Expanded already contains {0} {1}", package.Id, package.Version);
+        foreach (var package in this._installed_packages) {
+          if (!this._expanded.ContainsKey(key : package)) {
+            this._expanded.Add(key : package, false);
           }
 
-          installedPackageNames.Add(item : package._Id);
+          installed_package_names.Add(item : package._Id);
         }
 
-        this.installedPackageIds = installedPackageNames.ToArray();
+        this._installed_package_ids = installed_package_names.ToArray();
 
         this.BuildTree();
       } catch (System.Exception e) {
-        Debug.LogErrorFormat("{0}", e.ToString());
+        UnityEngine.Debug.LogErrorFormat("{0}", e);
       } finally {
-        EditorUtility.ClearProgressBar();
-      }
-    }
-
-    void BuildTree() {
-      // default all packages to being roots
-      this.roots = new List<NugetPackage>(collection : this.installedPackages);
-
-      // remove a package as a root if another package is dependent on it
-      foreach (var package in this.installedPackages) {
-        var frameworkGroup = NugetHelper.GetBestDependencyFrameworkGroupForCurrentSettings(package : package);
-        foreach (var dependency in frameworkGroup.Dependencies) {
-          this.roots.RemoveAll(p => p._Id == dependency._Id);
-        }
+        UnityEditor.EditorUtility.ClearProgressBar();
       }
     }
 
     /// <summary>
-    /// Automatically called by Unity to draw the GUI.
+    ///   Automatically called by Unity to draw the GUI.
     /// </summary>
     protected void OnGUI() {
-      this.currentTab = GUILayout.Toolbar(selected : this.currentTab, texts : this.tabTitles);
+      this._current_tab = UnityEngine.GUILayout.Toolbar(selected : this._current_tab, texts : this._tab_titles);
 
-      switch (this.currentTab) {
+      switch (this._current_tab) {
         case 0:
-          this.scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition : this.scrollPosition);
-          foreach (var package in this.roots) {
+          this._scroll_position =
+              UnityEditor.EditorGUILayout.BeginScrollView(scrollPosition : this._scroll_position);
+          foreach (var package in this._roots) {
             this.DrawPackage(package : package);
           }
 
-          EditorGUILayout.EndScrollView();
+          UnityEditor.EditorGUILayout.EndScrollView();
           break;
         case 1:
-          EditorStyles.label.fontStyle = FontStyle.Bold;
-          EditorStyles.label.fontSize = 14;
-          EditorGUILayout.LabelField("Select Dependency:", GUILayout.Height(20));
-          EditorStyles.label.fontStyle = FontStyle.Normal;
-          EditorStyles.label.fontSize = 10;
-          EditorGUI.indentLevel++;
-          var newIndex = EditorGUILayout.Popup(selectedIndex : this.selectedPackageIndex,
-                                               displayedOptions : this.installedPackageIds);
-          EditorGUI.indentLevel--;
+          UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Bold;
+          UnityEditor.EditorStyles.label.fontSize = 14;
+          UnityEditor.EditorGUILayout.LabelField("Select Dependency:", UnityEngine.GUILayout.Height(20));
+          UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Normal;
+          UnityEditor.EditorStyles.label.fontSize = 10;
+          UnityEditor.EditorGUI.indentLevel++;
+          var new_index = UnityEditor.EditorGUILayout.Popup(selectedIndex : this._selected_package_index,
+                                                           displayedOptions : this._installed_package_ids);
+          UnityEditor.EditorGUI.indentLevel--;
 
-          if (newIndex != this.selectedPackageIndex) {
-            this.selectedPackageIndex = newIndex;
+          if (new_index != this._selected_package_index) {
+            this._selected_package_index = new_index;
 
-            this.parentPackages.Clear();
-            var selectedPackage = this.installedPackages[index : this.selectedPackageIndex];
-            foreach (var package in this.installedPackages) {
-              var frameworkGroup =
+            this._parent_packages.Clear();
+            var selected_package = this._installed_packages[index : this._selected_package_index];
+            foreach (var package in this._installed_packages) {
+              var framework_group =
                   NugetHelper.GetBestDependencyFrameworkGroupForCurrentSettings(package : package);
-              foreach (var dependency in frameworkGroup.Dependencies) {
-                if (dependency._Id == selectedPackage._Id) {
-                  this.parentPackages.Add(item : package);
+              foreach (var dependency in framework_group.Dependencies) {
+                if (dependency._Id == selected_package._Id) {
+                  this._parent_packages.Add(item : package);
                 }
               }
             }
           }
 
-          EditorGUILayout.Space();
-          EditorStyles.label.fontStyle = FontStyle.Bold;
-          EditorStyles.label.fontSize = 14;
-          EditorGUILayout.LabelField("Packages That Depend on Above:", GUILayout.Height(20));
-          EditorStyles.label.fontStyle = FontStyle.Normal;
-          EditorStyles.label.fontSize = 10;
+          UnityEditor.EditorGUILayout.Space();
+          UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Bold;
+          UnityEditor.EditorStyles.label.fontSize = 14;
+          UnityEditor.EditorGUILayout.LabelField("Packages That Depend on Above:",
+                                                 UnityEngine.GUILayout.Height(20));
+          UnityEditor.EditorStyles.label.fontStyle = UnityEngine.FontStyle.Normal;
+          UnityEditor.EditorStyles.label.fontSize = 10;
 
-          this.scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition : this.scrollPosition);
-          EditorGUI.indentLevel++;
-          if (this.parentPackages.Count <= 0) {
-            EditorGUILayout.LabelField("NONE");
+          this._scroll_position =
+              UnityEditor.EditorGUILayout.BeginScrollView(scrollPosition : this._scroll_position);
+          UnityEditor.EditorGUI.indentLevel++;
+          if (this._parent_packages.Count <= 0) {
+            UnityEditor.EditorGUILayout.LabelField("NONE");
           } else {
-            foreach (var parent in this.parentPackages) {
+            foreach (var parent in this._parent_packages) {
               //EditorGUILayout.LabelField(string.Format("{0} {1}", parent.Id, parent.Version));
               this.DrawPackage(package : parent);
             }
           }
 
-          EditorGUI.indentLevel--;
-          EditorGUILayout.EndScrollView();
+          UnityEditor.EditorGUI.indentLevel--;
+          UnityEditor.EditorGUILayout.EndScrollView();
           break;
       }
     }
 
+    /// <summary>
+    ///   Opens the NuGet Package Manager Window.
+    /// </summary>
+    [UnityEditor.MenuItem("NuGet/Show Dependency Tree", false, 5)]
+    protected static void DisplayDependencyTree() { GetWindow<DependencyTreeViewer>(); }
+
+    void BuildTree() {
+      // default all packages to being roots
+      this._roots = new System.Collections.Generic.List<NugetPackage>(collection : this._installed_packages);
+
+      // remove a package as a root if another package is dependent on it
+      foreach (var package in this._installed_packages) {
+        var framework_group = NugetHelper.GetBestDependencyFrameworkGroupForCurrentSettings(package : package);
+        foreach (var dependency in framework_group.Dependencies) {
+          this._roots.RemoveAll(p => p._Id == dependency._Id);
+        }
+      }
+    }
+
     void DrawDepencency(NugetPackageIdentifier dependency) {
-      var fullDependency = this.installedPackages.Find(p => p._Id == dependency._Id);
-      if (fullDependency != null) {
-        this.DrawPackage(package : fullDependency);
+      var full_dependency = this._installed_packages.Find(p => p._Id == dependency._Id);
+      if (full_dependency != null) {
+        this.DrawPackage(package : full_dependency);
       } else {
-        Debug.LogErrorFormat("{0} {1} is not installed!", dependency._Id, dependency._Version);
+        UnityEngine.Debug.LogErrorFormat("{0} {1} is not installed!", dependency._Id, dependency._Version);
       }
     }
 
     void DrawPackage(NugetPackage package) {
       if (package.Dependencies != null && package.Dependencies.Count > 0) {
-        this.expanded[key : package] = EditorGUILayout.Foldout(foldout : this.expanded[key : package],
-                                                               content : string.Format("{0} {1}",
-                                                                 arg0 : package._Id,
-                                                                 arg1 : package._Version));
+        this._expanded[key : package] =
+            UnityEditor.EditorGUILayout.Foldout(foldout : this._expanded[key : package],
+                                                content : string.Format("{0} {1}",
+                                                                        arg0 : package._Id,
+                                                                        arg1 : package._Version));
 
-        if (this.expanded[key : package]) {
-          EditorGUI.indentLevel++;
+        if (this._expanded[key : package]) {
+          UnityEditor.EditorGUI.indentLevel++;
 
-          var frameworkGroup =
+          var framework_group =
               NugetHelper.GetBestDependencyFrameworkGroupForCurrentSettings(package : package);
-          foreach (var dependency in frameworkGroup.Dependencies) {
+          foreach (var dependency in framework_group.Dependencies) {
             this.DrawDepencency(dependency : dependency);
           }
 
-          EditorGUI.indentLevel--;
+          UnityEditor.EditorGUI.indentLevel--;
         }
       } else {
-        EditorGUILayout.LabelField(label : string.Format("{0} {1}",
-                                                         arg0 : package._Id,
-                                                         arg1 : package._Version));
+        UnityEditor.EditorGUILayout.LabelField(label : string.Format("{0} {1}",
+                                                                     arg0 : package._Id,
+                                                                     arg1 : package._Version));
       }
     }
   }
