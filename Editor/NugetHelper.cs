@@ -1,5 +1,6 @@
 ﻿#pragma warning disable 649 // never assigned
 #pragma warning disable 618 // UnityEngine.WWW
+#define VERBOSE_NOT
 
 namespace NuGetForUnity.Editor {
   using System;
@@ -30,31 +31,35 @@ namespace NuGetForUnity.Editor {
     /// <summary>
     /// The path to the nuget.config file.
     /// </summary>
-    public static readonly string _NugetConfigFilePath =
-        Path.Combine(path1 : Application.dataPath,path2 : NugetPreferences._Base_Path, "nuget.config");
+    const string _nuget_config_file_path = "nuget.config";
 
     /// <summary>
     /// The path to the packages.config file.
     /// </summary>
-    static readonly string _packages_config_file_path =
-        Path.Combine(path1 : Application.dataPath,path2 : NugetPreferences._Base_Path, "packages.config");
+    const string _packages_config_file_path = "packages.config";
 
     /// <summary>
     /// The path where to put created (packed) and downloaded (not installed yet) .nupkg files.
     /// </summary>
-    //public static readonly string PackOutputDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Path.Combine("NuGet", "Cache"));
-    public static readonly string _PackOutputDirectory =
-        Path.Combine(path1 : Application.dataPath, path2 : NugetPreferences._Base_Path, "Libraries");
+//public static readonly string PackOutputDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Path.Combine("NuGet", "Cache"));
+    const string _pack_output_directory = "Libraries";
+
+    const string _tools_packages_folder = "Libraries";
 
     /// <summary>
     /// The amount of time, in milliseconds, before the nuget.exe process times out and is killed.
     /// </summary>
     const int _time_out = 60000;
 
+    static NugetConfigFile _nuget_config_file;
+    
     /// <summary>
     /// The loaded NuGet.config file that holds the settings for NuGet.
     /// </summary>
-    public static NugetConfigFile NugetConfigFile { get; private set; }
+    public static NugetConfigFile NugetConfigFile {
+      get { return _nuget_config_file; }
+      private set { _nuget_config_file = value; }
+    }
 
     /// <summary>
     /// Backing field for the packages.config file.
@@ -67,7 +72,7 @@ namespace NuGetForUnity.Editor {
     public static PackagesConfigFile PackagesConfigFile {
       get {
         if (_packages_config_file == null) {
-          _packages_config_file = PackagesConfigFile.Load(filepath : _packages_config_file_path);
+          _packages_config_file = PackagesConfigFile.Load(filepath : PackagesConfigFilePath);
         }
 
         return _packages_config_file;
@@ -110,21 +115,19 @@ namespace NuGetForUnity.Editor {
     static NugetHelper() {
       _inside_initialize_on_load = true;
       try {
-        // if we are entering playmode, don't do anything
         if (EditorApplication.isPlayingOrWillChangePlaymode) {
+          // if we are entering playmode, don't do anything
           return;
         }
 
-        // Load the NuGet.config file
-        LoadNugetConfigFile();
+        LoadNugetConfigFile(); // Load the NuGet.config file
 
-        // create the nupkgs directory, if it doesn't exist
-        if (!Directory.Exists(path : _PackOutputDirectory)) {
-          Directory.CreateDirectory(path : _PackOutputDirectory);
+        if (!Directory.Exists(path : PackOutputDirectory)) {
+          // create the nupkgs directory, if it doesn't exist
+          Directory.CreateDirectory(path : PackOutputDirectory);
         }
 
-        // restore packages - this will be called EVERY time the project is loaded or a code-file changes
-        Restore();
+        Restore(); // restore packages - this will be called EVERY time the project is loaded or a code-file changes
       } finally {
         _inside_initialize_on_load = false;
       }
@@ -134,17 +137,16 @@ namespace NuGetForUnity.Editor {
     /// Loads the NuGet.config file.
     /// </summary>
     public static void LoadNugetConfigFile() {
-      if (File.Exists(path : _NugetConfigFilePath)) {
-        NugetConfigFile = NugetConfigFile.Load(file_path : _NugetConfigFilePath);
+      if (File.Exists(path : NugetConfigFilePath)) {
+        NugetConfigFile = NugetConfigFile.Load(file_path : NugetConfigFilePath);
       } else {
-        Debug.LogFormat("No nuget.config file found. Creating default at {0}", _NugetConfigFilePath);
+        Debug.LogFormat("No nuget.config file found. Creating default at {0}", NugetConfigFilePath);
 
-        NugetConfigFile = NugetConfigFile.CreateDefaultFile(file_path : _NugetConfigFilePath);
+        NugetConfigFile = NugetConfigFile.CreateDefaultFile(file_path : NugetConfigFilePath);
         AssetDatabase.Refresh();
       }
 
       // parse any command line arguments
-      //LogVerbose("Command line: {0}", Environment.CommandLine);
       _package_sources.Clear();
       var reading_sources = false;
       var use_command_line_sources = false;
@@ -169,8 +171,8 @@ namespace NuGetForUnity.Editor {
         }
       }
 
-      // if there are not command line overrides, use the NuGet.config package sources
-      if (!use_command_line_sources) {
+
+      if (!use_command_line_sources) {       // if there are not command line overrides, use the NuGet.config package sources
         if (NugetConfigFile.ActivePackageSource.ExpandedPath == "(Aggregate source)") {
           _package_sources.AddRange(collection : NugetConfigFile.PackageSources);
         } else {
@@ -183,24 +185,23 @@ namespace NuGetForUnity.Editor {
     /// Runs nuget.exe using the given arguments.
     /// </summary>
     /// <param name="arguments">The arguments to run nuget.exe with.</param>
-    /// <param name="log_ouput">True to output debug information to the Unity console.  Defaults to true.</param>
+    /// <param name="verbose">True to output debug information to the Unity console.  Defaults to true.</param>
     /// <returns>The string of text that was output from nuget.exe following its execution.</returns>
-    static void RunNugetProcess(string arguments, bool log_ouput = true) {
+    static void RunNugetProcess(string arguments, bool verbose = true) {
       // Try to find any nuget.exe in the package tools installation location
-      var tools_packages_folder = Path.Combine(path1 : Application.dataPath, "../Packages");
 
       // create the folder to prevent an exception when getting the files
-      Directory.CreateDirectory(path : tools_packages_folder);
+      Directory.CreateDirectory(path : ToolsPackagesFolder);
 
-      var files = Directory.GetFiles(path : tools_packages_folder,
+      var files = Directory.GetFiles(path : ToolsPackagesFolder,
                                      "NuGet.exe",
                                      searchOption : SearchOption.AllDirectories);
       if (files.Length > 1) {
         Debug.LogWarningFormat("More than one nuget.exe found. Using first one.");
       } else if (files.Length < 1) {
-        Debug.LogWarningFormat("No nuget.exe found! Attemping to install the NuGet.CommandLine package.");
+        Debug.LogWarningFormat("No nuget.exe found! Attempting to install the NuGet.CommandLine package.");
         InstallIdentifier(package : new NugetPackageIdentifier("NuGet.CommandLine", "2.8.6"));
-        files = Directory.GetFiles(path : tools_packages_folder,
+        files = Directory.GetFiles(path : ToolsPackagesFolder,
                                    "NuGet.exe",
                                    searchOption : SearchOption.AllDirectories);
         if (files.Length < 1) {
@@ -236,19 +237,23 @@ namespace NuGetForUnity.Editor {
                                         StandardOutputEncoding = Encoding.GetEncoding(850)
                                     });
 
-      if (!process.WaitForExit(milliseconds : _time_out)) {
-        Debug.LogWarning("NuGet took too long to finish.  Killing operation.");
-        process.Kill();
-      }
+      if (process != null) {
+        if (!process.WaitForExit(milliseconds : _time_out)) {
+          Debug.LogWarning("NuGet took too long to finish.  Killing operation.");
+          process.Kill();
+        }
 
-      var error = process.StandardError.ReadToEnd();
-      if (!string.IsNullOrEmpty(value : error)) {
-        Debug.LogError(message : error);
-      }
+        var error = process.StandardError.ReadToEnd();
+        if (!string.IsNullOrEmpty(value : error)) {
+          Debug.LogError(message : error);
+        }
 
-      var output = process.StandardOutput.ReadToEnd();
-      if (log_ouput && !string.IsNullOrEmpty(value : output)) {
-        Debug.Log(message : output);
+        var output = process.StandardOutput.ReadToEnd();
+        if (verbose && !string.IsNullOrEmpty(value : output)) {
+          Debug.Log(message : output);
+        }
+      } else {
+        Debug.LogError(message : "Process did not start");
       }
     }
 
@@ -385,10 +390,10 @@ namespace NuGetForUnity.Editor {
         }
 
         foreach (var directory in selected_directories) {
-          LogVerbose("Using {0}", directory);
+          LogVerbose($"Using {0}", directory);
         }
 
-        // delete all of the libaries except for the selected one
+        // delete all of the libraries except for the selected one
         foreach (var directory in lib_directories) {
           var valid_directory = selected_directories
                                 .Where(d => string.Compare(strA : d,
@@ -689,8 +694,8 @@ namespace NuGetForUnity.Editor {
     /// </summary>
     /// <param name="nuspec_file_path">The full filepath to the .nuspec file to use.</param>
     public static void Pack(string nuspec_file_path) {
-      if (!Directory.Exists(path : _PackOutputDirectory)) {
-        Directory.CreateDirectory(path : _PackOutputDirectory);
+      if (!Directory.Exists(path : PackOutputDirectory)) {
+        Directory.CreateDirectory(path : PackOutputDirectory);
       }
 
       // Use -NoDefaultExcludes to allow files and folders that start with a . to be packed into the package
@@ -698,7 +703,7 @@ namespace NuGetForUnity.Editor {
       // This is especially useful for .cs and .js files that you don't want Unity to compile as game scripts
       var arguments = string.Format("pack \"{0}\" -OutputDirectory \"{1}\" -NoDefaultExcludes",
                                     arg0 : nuspec_file_path,
-                                    arg1 : _PackOutputDirectory);
+                                    arg1 : PackOutputDirectory);
 
       RunNugetProcess(arguments : arguments);
     }
@@ -711,7 +716,7 @@ namespace NuGetForUnity.Editor {
     /// <param name="nuspec_file_path">The full filepath to the .nuspec file to use.  This is required by NuGet's Push command.</param>
     /// /// <param name="api_key">The API key to use when pushing a package to the server.  This is optional.</param>
     public static void Push(NuspecFile nuspec, string nuspec_file_path, string api_key = "") {
-      var package_path = Path.Combine(path1 : _PackOutputDirectory,
+      var package_path = Path.Combine(path1 : PackOutputDirectory,
                                       path2 : string.Format("{0}.{1}.nupkg",
                                                             arg0 : nuspec.Id,
                                                             arg1 : nuspec.Version));
@@ -725,10 +730,7 @@ namespace NuGetForUnity.Editor {
         }
       }
 
-      var arguments = string.Format("push \"{0}\" {1} -configfile \"{2}\"",
-                                    arg0 : package_path,
-                                    arg1 : api_key,
-                                    arg2 : _NugetConfigFilePath);
+      var arguments = $"push \"{package_path}\" {api_key} -configfile \"{NugetConfigFilePath}\"";
 
       RunNugetProcess(arguments : arguments);
     }
@@ -770,9 +772,9 @@ namespace NuGetForUnity.Editor {
 
       // copy sub-directories and their contents to new location
       var dirs = dir.GetDirectories();
-      foreach (var subdir in dirs) {
-        var temppath = Path.Combine(path1 : dest_directory_path, path2 : subdir.Name);
-        DirectoryCopy(source_directory_path : subdir.FullName, dest_directory_path : temppath);
+      foreach (var sub_dir in dirs) {
+        var temp_path = Path.Combine(path1 : dest_directory_path, path2 : sub_dir.Name);
+        DirectoryCopy(source_directory_path : sub_dir.FullName, dest_directory_path : temp_path);
       }
     }
 
@@ -850,7 +852,7 @@ namespace NuGetForUnity.Editor {
 
       // update the package.config file
       PackagesConfigFile.RemovePackage(package : package);
-      PackagesConfigFile.Save(filepath : _packages_config_file_path);
+      PackagesConfigFile.Save(filepath : PackagesConfigFilePath);
 
       var package_install_directory = Path.Combine(path1 : NugetConfigFile.RepositoryPath,
                                                    path2 : string.Format("{0}.{1}",
@@ -935,6 +937,35 @@ namespace NuGetForUnity.Editor {
     public static IEnumerable<NugetPackage> InstalledPackages { get { return _installed_packages.Values; } }
 
     /// <summary>
+    /// The path to the nuget.config file.
+    /// </summary>
+    public static String NugetConfigFilePath {
+      get { return Path.Combine(path1 : BasePath, path2 : _nuget_config_file_path); }
+    }
+
+    /// <summary>
+    /// The path to the packages.config file.
+    /// </summary>
+    public static String PackagesConfigFilePath {
+      get { return Path.Combine(path1 : BasePath, path2 : _packages_config_file_path); }
+    }
+
+    /// <summary>
+    /// The path where to put created (packed) and downloaded (not installed yet) .nupkg files.
+    /// </summary>
+    public static String PackOutputDirectory {
+      get { return Path.Combine(path1 : BasePath, path2 : _pack_output_directory); }
+    }
+
+    static string BasePath {
+      get { return Path.Combine(path1 : Application.dataPath, path2 : NugetPreferences._Base_Path); }
+    }
+
+    public static String ToolsPackagesFolder {
+      get { return Path.Combine(path1 : BasePath, path2 : _tools_packages_folder); }
+    }
+
+    /// <summary>
     /// Updates the dictionary of packages that are actually installed in the project based on the files that are currently installed.
     /// </summary>
     public static void UpdateInstalledPackages() {
@@ -956,7 +987,9 @@ namespace NuGetForUnity.Editor {
           if (!_installed_packages.ContainsKey(key : package._Id)) {
             _installed_packages.Add(key : package._Id, value : package);
           } else {
+            #if VERBOSE
             Debug.LogErrorFormat("Package is already in installed list: {0}", package._Id);
+            #endif
           }
         }
 
@@ -969,7 +1002,9 @@ namespace NuGetForUnity.Editor {
           if (!_installed_packages.ContainsKey(key : package._Id)) {
             _installed_packages.Add(key : package._Id, value : package);
           } else {
+            #if VERBOSE
             Debug.LogErrorFormat("Package is already in installed list: {0}", package._Id);
+            #endif
           }
         }
       }
@@ -1104,10 +1139,9 @@ namespace NuGetForUnity.Editor {
       NugetPackage package = null;
 
       if (NugetConfigFile.InstallFromCache) {
-        var cached_package_path = System.IO.Path.Combine(path1 : _PackOutputDirectory,
-                                                         path2 : string.Format("./{0}.{1}.nupkg",
-                                                           arg0 : package_id._Id,
-                                                           arg1 : package_id._Version));
+        var cached_package_path = System.IO.Path.Combine(path1 : PackOutputDirectory,
+                                                         path2 :
+                                                         $"./{package_id._Id}.{package_id._Version}.nupkg");
 
         if (File.Exists(path : cached_package_path)) {
           LogVerbose("Found exact package in the cache: {0}", cached_package_path);
@@ -1269,20 +1303,17 @@ namespace NuGetForUnity.Editor {
           LogVerbose("Installing Dependency: {0} {1}", dependency._Id, dependency._Version);
           var installed = InstallIdentifier(package : dependency);
           if (!installed) {
-            throw new Exception(message : string.Format("Failed to install dependency: {0} {1}.",
-                                                        arg0 : dependency._Id,
-                                                        arg1 : dependency._Version));
+            throw new Exception(message :
+                                $"Failed to install dependency: {dependency._Id} {dependency._Version}.");
           }
         }
 
         // update packages.config
         PackagesConfigFile.AddPackage(package : package);
-        PackagesConfigFile.Save(filepath : _packages_config_file_path);
+        PackagesConfigFile.Save(filepath : PackagesConfigFilePath);
 
-        var cached_package_path = Path.Combine(path1 : _PackOutputDirectory,
-                                               path2 : string.Format("./{0}.{1}.nupkg",
-                                                                     arg0 : package._Id,
-                                                                     arg1 : package._Version));
+        var cached_package_path = Path.Combine(path1 : PackOutputDirectory,
+                                               path2 : $"./{package._Id}.{package._Version}.nupkg");
         if (NugetConfigFile.InstallFromCache && File.Exists(path : cached_package_path)) {
           LogVerbose("Cached package found for {0} {1}", package._Id, package._Version);
         } else {
@@ -1291,9 +1322,7 @@ namespace NuGetForUnity.Editor {
 
             // copy the .nupkg from the local path to the cache
             File.Copy(sourceFileName : Path.Combine(path1 : package.PackageSource.ExpandedPath,
-                                                    path2 : string.Format("./{0}.{1}.nupkg",
-                                                      arg0 : package._Id,
-                                                      arg1 : package._Version)),
+                                                    path2 : $"./{package._Id}.{package._Version}.nupkg"),
                       destFileName : cached_package_path,
                       true);
           } else {
@@ -1313,9 +1342,7 @@ namespace NuGetForUnity.Editor {
             LogVerbose("Downloading package {0} {1}", package._Id, package._Version);
 
             if (refresh_assets) {
-              EditorUtility.DisplayProgressBar(title : string.Format("Installing {0} {1}",
-                                                                     arg0 : package._Id,
-                                                                     arg1 : package._Version),
+              EditorUtility.DisplayProgressBar(title : $"Installing {package._Id} {package._Version}",
                                                "Downloading Package",
                                                0.3f);
             }
@@ -1331,18 +1358,14 @@ namespace NuGetForUnity.Editor {
         }
 
         if (refresh_assets) {
-          EditorUtility.DisplayProgressBar(title : string.Format("Installing {0} {1}",
-                                                                 arg0 : package._Id,
-                                                                 arg1 : package._Version),
+          EditorUtility.DisplayProgressBar(title : $"Installing {package._Id} {package._Version}",
                                            "Extracting Package",
                                            0.6f);
         }
 
         if (File.Exists(path : cached_package_path)) {
           var base_directory = Path.Combine(path1 : NugetConfigFile.RepositoryPath,
-                                            path2 : string.Format("{0}.{1}",
-                                                                  arg0 : package._Id,
-                                                                  arg1 : package._Version));
+                                            path2 : $"{package._Id}.{package._Version}");
 
           // unzip the package
           using (var zip = ZipFile.Read(fileName : cached_package_path)) {
@@ -1360,18 +1383,15 @@ namespace NuGetForUnity.Editor {
           // copy the .nupkg inside the Unity project
           File.Copy(sourceFileName : cached_package_path,
                     destFileName : Path.Combine(path1 : NugetConfigFile.RepositoryPath,
-                                                path2 : string.Format("{0}.{1}/{0}.{1}.nupkg",
-                                                                      arg0 : package._Id,
-                                                                      arg1 : package._Version)),
+                                                path2 :
+                                                $"{package._Id}.{package._Version}/{package._Id}.{package._Version}.nupkg"),
                     true);
         } else {
           Debug.LogErrorFormat("File not found: {0}", cached_package_path);
         }
 
         if (refresh_assets) {
-          EditorUtility.DisplayProgressBar(title : string.Format("Installing {0} {1}",
-                                                                 arg0 : package._Id,
-                                                                 arg1 : package._Version),
+          EditorUtility.DisplayProgressBar(title : $"Installing {package._Id} {package._Version}",
                                            "Cleaning Package",
                                            0.9f);
         }
@@ -1391,9 +1411,7 @@ namespace NuGetForUnity.Editor {
         install_success = false;
       } finally {
         if (refresh_assets) {
-          EditorUtility.DisplayProgressBar(title : string.Format("Installing {0} {1}",
-                                                                 arg0 : package._Id,
-                                                                 arg1 : package._Version),
+          EditorUtility.DisplayProgressBar(title : $"Installing {package._Id} {package._Version}",
                                            "Importing Package",
                                            0.95f);
           AssetDatabase.Refresh();
@@ -1455,6 +1473,8 @@ namespace NuGetForUnity.Editor {
                                                                   }
                                       };
 
+
+
     /// <summary>
     /// Get the specified URL from the web. Throws exceptions if the request fails.
     /// </summary>
@@ -1483,12 +1503,8 @@ namespace NuGetForUnity.Editor {
         // This works with Visual Studio Team Services, but hasn't been tested with other authentication schemes so there may be additional work needed if there
         // are different kinds of authentication.
         get_request.Headers.Add("Authorization",
-                                value : "Basic "
-                                        + Convert.ToBase64String(inArray :
-                                                                 System.Text.Encoding.ASCII
-                                                                       .GetBytes(s : string.Format("{0}:{1}",
-                                                                         arg0 : user_name,
-                                                                         arg1 : password))));
+                                value :
+                                $"Basic {Convert.ToBase64String(inArray : System.Text.Encoding.ASCII.GetBytes(s : string.Format("{0}:{1}", arg0 : user_name, arg1 : password)))}");
       }
 
       LogVerbose("HTTP GET {0}", url);
@@ -1517,9 +1533,7 @@ namespace NuGetForUnity.Editor {
         foreach (var package in packages_to_install) {
           if (package != null) {
             EditorUtility.DisplayProgressBar("Restoring NuGet Packages",
-                                             info : string.Format("Restoring {0} {1}",
-                                                                  arg0 : package._Id,
-                                                                  arg1 : package._Version),
+                                             info : $"Restoring {package._Id} {package._Version}",
                                              progress : current_progress);
 
             if (!IsInstalled(package : package)) {
@@ -1735,13 +1749,13 @@ namespace NuGetForUnity.Editor {
     }
 
     /// <summary>
-    /// Helper function to aquire a token to access VSTS hosted nuget feeds by using the CredentialProvider.VSS.exe
+    /// Helper function to acquire a token to access VSTS hosted nuget feeds by using the CredentialProvider.VSS.exe
     /// tool. Downloading it from the VSTS instance if needed.
     /// See here for more info on nuget Credential Providers:
     /// https://docs.microsoft.com/en-us/nuget/reference/extensibility/nuget-exe-credential-providers
     /// </summary>
     /// <param name="feed_uri">The hostname where the VSTS instance is hosted (such as microsoft.pkgs.visualsudio.com.</param>
-    /// <returns>The password in the form of a token, or null if the password could not be aquired</returns>
+    /// <returns>The password in the form of a token, or null if the password could not be acquired</returns>
     static CredentialProviderResponse? GetCredentialFromProvider(Uri feed_uri) {
       CredentialProviderResponse? response;
       if (!_cached_credentials_by_feed_uri.TryGetValue(key : feed_uri, value : out response)) {
@@ -1787,7 +1801,7 @@ namespace NuGetForUnity.Editor {
       LogVerbose("Getting credential for {0}", feed_uri);
 
       // Build the list of possible locations to find the credential provider. In order it should be local app data, paths set on the
-      // environment varaible, and lastly look at the root of the pacakges save location.
+      // environment variable, and lastly look at the root of the packages save location.
       var possible_credential_provider_paths = new List<string> {
                                                                     Path.Combine(path1 :
                                                                       Path.Combine(path1 : Environment
@@ -1810,8 +1824,7 @@ namespace NuGetForUnity.Editor {
       }
 
       // Try to find any nuget.exe in the package tools installation location
-      var tools_packages_folder = Path.Combine(path1 : Application.dataPath, "../Packages");
-      possible_credential_provider_paths.Add(item : tools_packages_folder);
+      possible_credential_provider_paths.Add(item : ToolsPackagesFolder);
 
       // Search through all possible paths to find the credential provider.
       var provider_paths = new List<string>();
@@ -1826,17 +1839,22 @@ namespace NuGetForUnity.Editor {
 
       foreach (var provider_path in provider_paths.Distinct()) {
         // Launch the credential provider executable and get the json encoded response from the std output
-        var process = new Process();
-        process.StartInfo.UseShellExecute = false;
-        process.StartInfo.CreateNoWindow = true;
-        process.StartInfo.RedirectStandardOutput = true;
-        process.StartInfo.RedirectStandardError = true;
-        process.StartInfo.FileName = provider_path;
-        process.StartInfo.Arguments = string.Format("-uri \"{0}\"", arg0 : feed_uri.ToString());
+        var process = new Process {
+                                      StartInfo = {
+                                                      UseShellExecute = false,
+                                                      CreateNoWindow = true,
+                                                      RedirectStandardOutput = true,
+                                                      RedirectStandardError = true,
+                                                      FileName = provider_path,
+                                                      Arguments =
+                                                          string.Format("-uri \"{0}\"",
+                                                                        arg0 : feed_uri.ToString()),
+                                                      StandardOutputEncoding = Encoding.GetEncoding(850)
+                                                  }
+                                  };
 
         // http://stackoverflow.com/questions/16803748/how-to-decode-cmd-output-correctly
         // Default = 65533, ASCII = ?, Unicode = nothing works at all, UTF-8 = 65533, UTF-7 = 242 = WORKS!, UTF-32 = nothing works at all
-        process.StartInfo.StandardOutputEncoding = Encoding.GetEncoding(850);
         process.Start();
         process.WaitForExit();
 
